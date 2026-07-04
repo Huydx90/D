@@ -13,6 +13,8 @@ const PORT = 3000;
 const DATA_FILE = path.join(__dirname, 'lineup-data.json');
 const LOG_FILE = path.join(__dirname, 'lineup-log.json');
 const MAX_LOG_ENTRIES = 1000; // chỉ giữ lại 1000 dòng nhật ký gần nhất
+const CHAT_FILE = path.join(__dirname, 'chat-log.json');
+const MAX_CHAT_MESSAGES = 5000; // chỉ giữ lại 5000 dòng chat gần nhất
 
 // Serve static files
 app.use(express.static(__dirname));
@@ -99,6 +101,37 @@ function appendLog(entry) {
     return log;
 }
 
+// ===== Chat nội bộ =====
+function loadChat() {
+    try {
+        if (fs.existsSync(CHAT_FILE)) {
+            return JSON.parse(fs.readFileSync(CHAT_FILE, 'utf8'));
+        }
+    } catch (err) {
+        console.error('Error loading chat:', err);
+    }
+    return [];
+}
+
+function saveChat(messages) {
+    try {
+        fs.writeFileSync(CHAT_FILE, JSON.stringify(messages, null, 2));
+    } catch (err) {
+        console.error('Error saving chat:', err);
+    }
+}
+
+// Thêm 1 tin nhắn mới vào cuối mảng (mới nhất ở cuối), cắt bớt tin cũ nhất nếu vượt quá giới hạn
+function appendChatMessage(entry) {
+    const messages = loadChat();
+    messages.push(entry);
+    if (messages.length > MAX_CHAT_MESSAGES) {
+        messages.splice(0, messages.length - MAX_CHAT_MESSAGES);
+    }
+    saveChat(messages);
+    return messages;
+}
+
 // Gom vị trí hiện tại của từng cầu thủ (trên sân hay dự bị) để so sánh trước/sau
 function locationsOf(data) {
     const loc = {};
@@ -157,6 +190,10 @@ app.get('/api/data', (req, res) => {
 
 app.get('/api/log', (req, res) => {
     res.json({ log: loadLog() });
+});
+
+app.get('/api/chat', (req, res) => {
+    res.json({ messages: loadChat() });
 });
 
 app.post('/api/data', express.json(), (req, res) => {
@@ -240,6 +277,7 @@ wss.on('connection', (ws, req) => {
     const data = loadData();
     ws.send(JSON.stringify({ type: 'init', data: data }));
     ws.send(JSON.stringify({ type: 'log_init', log: loadLog() }));
+    ws.send(JSON.stringify({ type: 'chat_init', messages: loadChat() }));
 
     // Let the new client know if editing is currently locked by someone
     if (editLock) {
@@ -270,6 +308,20 @@ wss.on('connection', (ws, req) => {
                 if (editLock && editLock.clientId === ws.clientId) {
                     releaseLock();
                 }
+            } else if (data.type === 'chat_message') {
+                // Bắt buộc phải có tên mới được gửi chat (server tự kiểm tra lại, không chỉ tin client)
+                const name = (data.name || '').toString().trim().slice(0, 40);
+                const text = (data.text || '').toString().trim().slice(0, 1000);
+                if (!name || !text) return;
+                const entry = {
+                    id: 'm' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+                    time: new Date().toISOString(),
+                    ip: ws.ip,
+                    name,
+                    text
+                };
+                appendChatMessage(entry);
+                broadcast(JSON.stringify({ type: 'chat_message', entry }));
             }
         } catch (err) {
             console.error('Error processing message:', err);
