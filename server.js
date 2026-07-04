@@ -251,6 +251,7 @@ app.get('/api/chat', async (req, res) => {
 
 app.post('/api/data', express.json(), async (req, res) => {
     const requesterClientId = req.body && req.body.clientId;
+    const actionLabel = req.body && req.body.actionLabel; // nhãn nhật ký tuỳ chọn (vd: khôi phục từ file JSON)
 
     // Reject saves from a client that doesn't currently hold the edit lock
     if (editLock && editLock.clientId !== requesterClientId) {
@@ -264,10 +265,11 @@ app.post('/api/data', express.json(), async (req, res) => {
     const oldData = await loadData(); // lấy trạng thái trước khi ghi đè, để so sánh sinh nhật ký
     const newData = { ...req.body };
     delete newData.clientId; // don't persist this into the DB row
+    delete newData.actionLabel;
 
     if (await saveData(newData)) {
         const ip = getClientIp(req);
-        const entry = { time: new Date().toISOString(), ip, action: describeChanges(oldData, newData) };
+        const entry = { time: new Date().toISOString(), ip, action: actionLabel || describeChanges(oldData, newData) };
         await appendLog(entry);
 
         // Broadcast to all connected clients
@@ -379,6 +381,11 @@ wss.on('connection', async (ws, req) => {
                 };
                 await appendChatMessage(entry);
                 broadcast(JSON.stringify({ type: 'chat_message', entry }));
+            } else if (data.type === 'export_log') {
+                // Chỉ ghi nhật ký "ai vừa xuất file", không có dữ liệu nào bị thay đổi
+                const entry = { time: new Date().toISOString(), ip: ws.ip, action: '📤 Đã xuất dữ liệu cầu thủ ra file JSON' };
+                await appendLog(entry);
+                broadcast(JSON.stringify({ type: 'log_entry', entry }));
             }
         } catch (err) {
             console.error('Error processing message:', err);

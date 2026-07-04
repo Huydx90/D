@@ -272,6 +272,36 @@
     .chat-btn:disabled{ opacity:.5; cursor:default; }
     .chat-hint{ font-size:.68em; color:var(--ink-soft); margin-top:6px; }
 
+    /* ===== Export / Import (sao lưu & khôi phục) ===== */
+    .backup-actions{ display:flex; gap:8px; }
+    .backup-btn{
+        flex:1; background: var(--bench); color:#fff; border:none; padding:10px 8px; border-radius:12px;
+        font-size:.8em; font-weight:700; cursor:pointer;
+        touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+        display:flex; align-items:center; justify-content:center; gap:5px;
+    }
+    .backup-btn:active{ transform: scale(.96); }
+    .backup-hint{ font-size:.68em; color:var(--ink-soft); margin-top:8px; line-height:1.5; }
+
+    .import-modal{ max-width:440px; }
+    .import-dropzone{
+        border:2px dashed #cbbf9a; border-radius:12px; padding:26px 14px; text-align:center;
+        cursor:pointer; background:#fbf9f2; transition: border-color .15s ease, background .15s ease;
+    }
+    .import-dropzone.drag-active{ border-color: var(--ok); background:#eefaf0; }
+    .import-dropzone-icon{ font-size:1.8em; margin-bottom:6px; }
+    .import-dropzone-text{ font-size:.82em; color:var(--ink-soft); line-height:1.5; }
+    .import-file-info{
+        margin-top:10px; background:#fff; border:1px solid #e6e1d1; border-radius:10px;
+        padding:10px 12px; font-size:.8em; color:var(--ink);
+    }
+    .import-file-info strong{ display:block; margin-bottom:3px; word-break:break-all; }
+    .import-file-info span{ color:var(--ink-soft); }
+    .import-error{
+        margin-top:10px; background:#fdeceb; border:1px solid #f3c3bd; color:#a23b30;
+        border-radius:10px; padding:9px 12px; font-size:.8em; line-height:1.4;
+    }
+
     /* ===== Modal ===== */
     .modal-overlay{
         position:fixed; inset:0; background: rgba(0,0,0,.65);
@@ -366,6 +396,14 @@
                 <div class="card-title">🟢 Đang online <span class="count" id="online-count"></span></div>
                 <div class="staff-row" id="online-list"></div>
             </div>
+            <div class="card">
+                <div class="card-title">💾 Sao lưu dữ liệu cầu thủ</div>
+                <div class="backup-actions">
+                    <button class="backup-btn" id="export-btn" type="button">⬇️ Xuất JSON</button>
+                    <button class="backup-btn" id="import-open-btn" type="button">⬆️ Nhập JSON</button>
+                </div>
+                <p class="backup-hint">Xuất toàn bộ đội hình, dự bị và chỉ số cầu thủ ra file JSON để lưu về máy; hoặc nhập lại file JSON đã xuất trước đó để khôi phục.</p>
+            </div>
             <div class="card chat-card">
                 <div class="card-title">💬 Chat nội bộ</div>
                 <div class="chat-messages" id="chat-messages"></div>
@@ -423,6 +461,30 @@
             <div class="modal-actions">
                 <button class="btn btn-cancel" onclick="closeModal()">Hủy</button>
                 <button class="btn btn-save" onclick="savePlayerStats()">💾 Lưu</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="import-modal-overlay">
+        <div class="player-modal import-modal">
+            <div class="modal-header">
+                <div class="modal-avatar">📁</div>
+                <div class="modal-title">
+                    <h2>Nhập / khôi phục dữ liệu</h2>
+                    <p>Chọn file JSON đã xuất trước đó</p>
+                </div>
+                <button class="modal-close" id="import-modal-close" type="button">×</button>
+            </div>
+            <div class="import-dropzone" id="import-dropzone" role="button" tabindex="0">
+                <div class="import-dropzone-icon">📄</div>
+                <div class="import-dropzone-text" id="import-dropzone-text">Kéo thả file JSON vào đây, hoặc bấm để chọn file</div>
+                <input type="file" id="import-file-input" accept="application/json,.json" hidden>
+            </div>
+            <div class="import-file-info" id="import-file-info" style="display:none;"></div>
+            <div class="import-error" id="import-error" style="display:none;"></div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" id="import-cancel-btn" type="button">Hủy</button>
+                <button class="btn btn-save" id="import-restore-btn" type="button" disabled>📥 Khôi phục</button>
             </div>
         </div>
     </div>
@@ -693,6 +755,193 @@
     });
     if (chatName) document.getElementById('chat-name-input').value = chatName;
     updateChatActionUI();
+
+    // ===== Export / Import (sao lưu & khôi phục dữ liệu cầu thủ) =====
+    function pad2(n){ return String(n).padStart(2, '0'); }
+
+    function buildExportData(){
+        return {
+            players: getCurrentPlayers(),
+            substitutes: getCurrentSubstitutes(),
+            playerStats: playerData
+        };
+    }
+
+    function downloadJSON(obj, filename){
+        const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    function exportPlayerData(){
+        const now = new Date();
+        const filename = 'doi-hinh-cau-thu_' + now.getFullYear() + pad2(now.getMonth() + 1) + pad2(now.getDate())
+            + '_' + pad2(now.getHours()) + pad2(now.getMinutes()) + '.json';
+        downloadJSON(buildExportData(), filename);
+        // Ghi nhận vào nhật ký để mọi người biết ai vừa xuất dữ liệu (chỉ khi đang có kết nối server)
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'export_log' }));
+        }
+    }
+    document.getElementById('export-btn').addEventListener('click', exportPlayerData);
+
+    // --- Dialog nhập / khôi phục ---
+    let importedData = null; // dữ liệu JSON hợp lệ đang chờ người dùng bấm Khôi phục
+
+    function openImportModal(){
+        importedData = null;
+        document.getElementById('import-file-input').value = '';
+        document.getElementById('import-file-info').style.display = 'none';
+        document.getElementById('import-error').style.display = 'none';
+        document.getElementById('import-restore-btn').disabled = true;
+        document.getElementById('import-dropzone-text').textContent = 'Kéo thả file JSON vào đây, hoặc bấm để chọn file';
+        document.getElementById('import-modal-overlay').classList.add('active');
+    }
+    function closeImportModal(){
+        document.getElementById('import-modal-overlay').classList.remove('active');
+        importedData = null;
+    }
+    document.getElementById('import-open-btn').addEventListener('click', openImportModal);
+    document.getElementById('import-cancel-btn').addEventListener('click', closeImportModal);
+    document.getElementById('import-modal-close').addEventListener('click', closeImportModal);
+    document.getElementById('import-modal-overlay').addEventListener('click', function(e){
+        if (e.target === this) closeImportModal(); // bấm ra ngoài dialog = Hủy, không làm gì
+    });
+
+    function showImportError(msg){
+        const err = document.getElementById('import-error');
+        err.textContent = msg;
+        err.style.display = 'block';
+        document.getElementById('import-file-info').style.display = 'none';
+        document.getElementById('import-restore-btn').disabled = true;
+        importedData = null;
+    }
+
+    // Kiểm tra sơ bộ cấu trúc file JSON có phải "thông tin cầu thủ" hợp lệ hay không
+    function validateImportShape(obj){
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return 'File JSON không hợp lệ.';
+        if (obj.players !== undefined && (typeof obj.players !== 'object' || Array.isArray(obj.players))) {
+            return 'Trường "players" trong file không hợp lệ.';
+        }
+        if (obj.substitutes !== undefined && !Array.isArray(obj.substitutes)) {
+            return 'Trường "substitutes" trong file không hợp lệ.';
+        }
+        if (obj.playerStats !== undefined && (typeof obj.playerStats !== 'object' || Array.isArray(obj.playerStats))) {
+            return 'Trường "playerStats" trong file không hợp lệ.';
+        }
+        if (!obj.players && !obj.substitutes && !obj.playerStats) {
+            return 'File không chứa dữ liệu cầu thủ nào nhận diện được (players / substitutes / playerStats).';
+        }
+        return null;
+    }
+
+    function handleImportFile(file){
+        if (!file) return;
+        if (!/\.json$/i.test(file.name) && file.type && file.type !== 'application/json') {
+            showImportError('Vui lòng chọn đúng file định dạng .json');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = function(){
+            let parsed;
+            try {
+                parsed = JSON.parse(reader.result);
+            } catch (err) {
+                showImportError('File không phải JSON hợp lệ: ' + err.message);
+                return;
+            }
+            const errMsg = validateImportShape(parsed);
+            if (errMsg) { showImportError(errMsg); return; }
+
+            importedData = parsed;
+            const fieldCount = parsed.players ? Object.keys(parsed.players).length : 0;
+            const subCount = Array.isArray(parsed.substitutes) ? parsed.substitutes.length : 0;
+            const statCount = parsed.playerStats ? Object.keys(parsed.playerStats).length : 0;
+
+            const info = document.getElementById('import-file-info');
+            info.innerHTML = '';
+            const strong = document.createElement('strong');
+            strong.textContent = file.name;
+            const detail = document.createElement('span');
+            detail.textContent = fieldCount + ' cầu thủ trên sân · ' + subCount + ' dự bị · ' + statCount + ' hồ sơ chỉ số';
+            info.appendChild(strong);
+            info.appendChild(detail);
+            info.style.display = 'block';
+
+            document.getElementById('import-error').style.display = 'none';
+            document.getElementById('import-restore-btn').disabled = false;
+        };
+        reader.onerror = function(){ showImportError('Không đọc được file, vui lòng thử lại.'); };
+        reader.readAsText(file);
+    }
+
+    const importDropzone = document.getElementById('import-dropzone');
+    importDropzone.addEventListener('click', function(){
+        document.getElementById('import-file-input').click();
+    });
+    importDropzone.addEventListener('keydown', function(e){
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); }
+    });
+    document.getElementById('import-file-input').addEventListener('change', function(e){
+        handleImportFile(e.target.files && e.target.files[0]);
+    });
+    ['dragenter', 'dragover'].forEach(evt => {
+        importDropzone.addEventListener(evt, function(e){
+            e.preventDefault(); e.stopPropagation();
+            importDropzone.classList.add('drag-active');
+        });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+        importDropzone.addEventListener(evt, function(e){
+            e.preventDefault(); e.stopPropagation();
+            importDropzone.classList.remove('drag-active');
+        });
+    });
+    importDropzone.addEventListener('drop', function(e){
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        handleImportFile(file);
+    });
+
+    // Lưu dữ liệu vừa khôi phục lên server, gắn nhãn nhật ký riêng để phân biệt với chỉnh sửa thông thường
+    function saveRestoredData(){
+        if (isFileMode) return; // ngoại tuyến: chỉ áp dụng cục bộ, không có server để lưu lên
+        const data = {
+            players: getCurrentPlayers(),
+            substitutes: getCurrentSubstitutes(),
+            playerStats: playerData,
+            clientId: myClientId,
+            actionLabel: '📥 Đã khôi phục dữ liệu cầu thủ từ file JSON tải lên'
+        };
+        fetch('/api/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        }).then(r => {
+            if (r.status === 423) {
+                return r.json().then(body => { showLockToast(body.lockedByIp); loadFromServer(); });
+            }
+            if (r.ok) { updateConnectionStatus(true); updateFormationTitle(); }
+        }).catch(() => updateConnectionStatus(false));
+    }
+
+    function restoreFromImportedData(){
+        if (!importedData) return;
+        if (isLockedByOther()) { showLockToast(editLock.ip); return; }
+        if (!confirm('Khôi phục sẽ GHI ĐÈ đội hình, dự bị và chỉ số cầu thủ hiện tại bằng dữ liệu trong file. Tiếp tục?')) return;
+
+        requestLock();
+        applyLoadedData(importedData);
+        saveRestoredData();
+        releaseLock();
+        closeImportModal();
+    }
+    document.getElementById('import-restore-btn').addEventListener('click', restoreFromImportedData);
 
     const isFileMode = window.location.protocol === 'file:'; // mở trực tiếp file .html, không qua server
 
