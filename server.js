@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
+app.set('trust proxy', true); // chạy sau reverse proxy (Render.com...), cần để Express hiểu header X-Forwarded-For
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
@@ -198,7 +199,11 @@ let lockSafetyTimer = null;
 const LOCK_SAFETY_TIMEOUT_MS = 20000; // auto-release if a client forgets to unlock
 
 function getClientIp(req) {
-    let ip = req.socket.remoteAddress || 'unknown';
+    // Khi chạy sau reverse proxy (Render.com, Railway, Nginx...), req.socket.remoteAddress
+    // chỉ là địa chỉ nội bộ của proxy (thường ra 127.0.0.1) — IP thật của client nằm ở
+    // header X-Forwarded-For do proxy gắn vào, dạng "client, proxy1, proxy2,...".
+    const xff = req.headers && req.headers['x-forwarded-for'];
+    let ip = (xff ? xff.split(',')[0].trim() : null) || req.socket.remoteAddress || 'unknown';
     if (ip.startsWith('::ffff:')) ip = ip.substring(7); // normalize IPv4-mapped IPv6
     if (ip === '::1') ip = '127.0.0.1';
     return ip;
@@ -226,6 +231,7 @@ wss.on('connection', (ws, req) => {
     ws.ip = getClientIp(req);
     console.log('New client connected:', ws.clientId, ws.ip);
     clients.add(ws);
+    broadcastOnlineList();
 
     // Tell this client who it is
     ws.send(JSON.stringify({ type: 'welcome', clientId: ws.clientId, ip: ws.ip }));
@@ -273,6 +279,7 @@ wss.on('connection', (ws, req) => {
     ws.on('close', () => {
         console.log('Client disconnected:', ws.clientId);
         clients.delete(ws);
+        broadcastOnlineList();
         if (editLock && editLock.clientId === ws.clientId) {
             releaseLock();
         }
@@ -281,6 +288,7 @@ wss.on('connection', (ws, req) => {
     ws.on('error', (err) => {
         console.error('WebSocket error:', err);
         clients.delete(ws);
+        broadcastOnlineList();
         if (editLock && editLock.clientId === ws.clientId) {
             releaseLock();
         }
@@ -293,6 +301,20 @@ function broadcast(message) {
             client.send(message);
         }
     });
+}
+
+function getOnlineList() {
+    // Gộp theo IP để không đếm trùng nếu 1 người mở nhiều tab/thiết bị cùng IP nhiều lần
+    const seen = new Map();
+    clients.forEach((c) => {
+        if (!seen.has(c.ip)) seen.set(c.ip, { ip: c.ip, count: 0 });
+        seen.get(c.ip).count++;
+    });
+    return Array.from(seen.values());
+}
+
+function broadcastOnlineList() {
+    broadcast(JSON.stringify({ type: 'online_list', clients: getOnlineList() }));
 }
 
 function getLanIps() {

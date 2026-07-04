@@ -235,6 +235,15 @@
     .log-entry .log-action{ color:var(--ink); word-break:break-word; }
     .log-empty{ font-size:.75em; color:var(--ink-soft); padding:6px 2px; }
 
+    .ip-chip{
+        display:flex; align-items:center; gap:6px;
+        background:#eef6ee; border:1px solid #d8ecd8; color:var(--ink);
+        font-size:.74em; font-weight:700; padding:5px 10px; border-radius:16px;
+    }
+    .ip-chip .dot{ width:7px; height:7px; border-radius:50%; background:var(--ok); flex-shrink:0; }
+    .ip-chip.editing{ background:#fff4e0; border-color:#f0d9a8; }
+    .ip-chip.editing .dot{ background:#e6a23c; }
+
     /* ===== Modal ===== */
     .modal-overlay{
         position:fixed; inset:0; background: rgba(0,0,0,.65);
@@ -324,6 +333,10 @@
                     <div class="staff-chip"><div class="staff-avatar">👨‍💼</div><div><strong>Hà</strong><span>HLV trưởng</span></div></div>
                     <div class="staff-chip"><div class="staff-avatar">👨‍💼</div><div><strong>Xuân Huy</strong><span>HLV phó</span></div></div>
                 </div>
+            </div>
+            <div class="card">
+                <div class="card-title">🟢 Đang online <span class="count" id="online-count"></span></div>
+                <div class="staff-row" id="online-list"></div>
             </div>
             <div class="card">
                 <div class="card-title" id="log-toggle" role="button" tabindex="0">
@@ -477,7 +490,31 @@
     let myClientId = null;
     let editLock = null; // { clientId, ip } | null
     let editLog = []; // nhật ký chỉnh sửa, mới nhất ở đầu mảng (server lưu tới 1000 dòng)
+    let onlineList = []; // danh sách IP đang kết nối tới server ngay lúc này
     const LOG_DISPLAY_LIMIT = 100; // chỉ hiển thị 100 dòng gần nhất cho gọn màn hình điện thoại
+
+    function renderOnlineList(list){
+        const wrap = document.getElementById('online-list');
+        const countEl = document.getElementById('online-count');
+        onlineList = list || [];
+        if (!onlineList.length) {
+            wrap.innerHTML = '<span class="log-empty">Không có ai online.</span>';
+            countEl.textContent = '';
+            return;
+        }
+        countEl.textContent = '(' + onlineList.length + ')';
+        wrap.innerHTML = onlineList.map(() =>
+            '<span class="ip-chip"><span class="dot"></span><span class="ip-text"></span></span>'
+        ).join('');
+        const chips = wrap.querySelectorAll('.ip-chip');
+        onlineList.forEach((c, i) => {
+            const isEditing = !!(editLock && editLock.ip === c.ip);
+            chips[i].classList.toggle('editing', isEditing);
+            let label = c.ip + (c.count > 1 ? ' ×' + c.count : '');
+            if (isEditing) label += ' — đang sửa';
+            chips[i].querySelector('.ip-text').textContent = label;
+        });
+    }
 
     function formatLogTime(iso){
         try {
@@ -589,6 +626,7 @@
                 } else if (message.type === 'lock_status') {
                     editLock = message.locked ? { clientId: message.clientId, ip: message.ip } : null;
                     updateLockUI();
+                    renderOnlineList(onlineList); // cập nhật lại nhãn "đang sửa" trên đúng chip IP
                 } else if (message.type === 'lock_denied') {
                     showLockToast(message.ip);
                 } else if (message.type === 'log_init') {
@@ -598,6 +636,8 @@
                     editLog.unshift(message.entry);
                     if (editLog.length > 1000) editLog.length = 1000;
                     renderLog();
+                } else if (message.type === 'online_list') {
+                    renderOnlineList(message.clients);
                 }
             } catch (err) { console.error('WS message error:', err); }
         };
@@ -614,6 +654,8 @@
             initField();
             document.getElementById('log-list').innerHTML =
                 '<div class="log-empty">Ngoại tuyến — không có nhật ký server.</div>';
+            document.getElementById('online-list').innerHTML =
+                '<span class="log-empty">Ngoại tuyến — không có danh sách online.</span>';
             return;
         }
         fetch('/api/data')
