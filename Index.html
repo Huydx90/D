@@ -272,6 +272,40 @@
     .chat-btn:disabled{ opacity:.5; cursor:default; }
     .chat-hint{ font-size:.68em; color:var(--ink-soft); margin-top:6px; }
 
+    /* ===== Emoji picker trong chat ===== */
+    .emoji-picker-wrap{ position:relative; }
+    .chat-emoji-btn{ padding:0 12px; font-size:1.15em; }
+    .emoji-picker{
+        display:none; position:absolute; bottom:calc(100% + 10px); left:50%; transform:translateX(-50%);
+        width:250px; max-width:78vw; background:#fff; border:1px solid #e6e1d1; border-radius:14px;
+        box-shadow:0 10px 28px rgba(0,0,0,.18); padding:10px 8px 6px; z-index:60;
+    }
+    .emoji-picker.open{ display:block; }
+    .emoji-picker::after{
+        content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+        width:0; height:0; border:7px solid transparent; border-top-color:#fff;
+    }
+    .emoji-picker-pages{
+        display:flex; overflow-x:auto; scroll-snap-type:x mandatory;
+        -webkit-overflow-scrolling:touch; scrollbar-width:none;
+    }
+    .emoji-picker-pages::-webkit-scrollbar{ display:none; }
+    .emoji-picker-page{
+        flex:0 0 100%; scroll-snap-align:start;
+        display:grid; grid-template-columns:repeat(6, 1fr); gap:0;
+    }
+    .emoji-btn-item{
+        background:none; border:none; font-size:1.4em; line-height:1; padding:7px 0; cursor:pointer;
+        border-radius:9px; touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+    }
+    .emoji-btn-item:active{ background:#f1efe4; transform:scale(1.2); }
+    .emoji-picker-dots{
+        display:flex; justify-content:center; gap:5px; margin-top:6px; padding-top:6px;
+        border-top:1px solid #f0ede2;
+    }
+    .emoji-picker-dot{ width:6px; height:6px; border-radius:50%; background:#d8d2bd; cursor:pointer; padding:0; border:none; }
+    .emoji-picker-dot.active{ background: var(--ok); }
+
     /* ===== Export / Import (sao lưu & khôi phục) ===== */
     .backup-actions{ display:flex; gap:8px; }
     .backup-btn{
@@ -434,6 +468,13 @@
                 </div>
                 <div class="chat-action" id="chat-action-send" style="display:none;">
                     <input type="text" id="chat-text-input" placeholder="Nhập tin nhắn…" maxlength="1000">
+                    <div class="emoji-picker-wrap" id="emoji-picker-wrap">
+                        <button class="chat-btn chat-emoji-btn" id="chat-emoji-btn" type="button" aria-label="Chọn emoji">😊</button>
+                        <div class="emoji-picker" id="emoji-picker">
+                            <div class="emoji-picker-pages" id="emoji-picker-pages"></div>
+                            <div class="emoji-picker-dots" id="emoji-picker-dots"></div>
+                        </div>
+                    </div>
                     <button class="chat-btn" id="chat-send-btn" type="button">Gửi</button>
                 </div>
                 <div class="chat-hint" id="chat-hint"></div>
@@ -782,6 +823,85 @@
     document.getElementById('chat-text-input').addEventListener('keydown', function(e){
         if (e.key === 'Enter') { e.preventDefault(); sendChatMessage(); }
     });
+
+    // ===== Emoji picker cho chat =====
+    const EMOJI_LIST = [
+        '😀','😁','😂','🤣','😊','🙂','😉','😍','😘','😜','🤪','🤔',
+        '😎','🥳','🤩','😇','😅','😏','🙄','😴','🤗','😢','😭','😡',
+        '😱','🥺','👍','👎','👏','🙏','💪','🤝','👋','✌️','🤞','👌',
+        '🤙','💯','❤️','💔','🔥','⭐','🎉','🎊','⚽','🏆','🥅','🎯',
+        '⏱️','💦','🚩','🐐','🧤','🟨','🟥','🔄','🆘','✅','❌','⚡'
+    ];
+    const EMOJI_PER_PAGE = 24; // 6 cột x 4 hàng mỗi trang
+
+    function buildEmojiPicker(){
+        const pagesWrap = document.getElementById('emoji-picker-pages');
+        const dotsWrap = document.getElementById('emoji-picker-dots');
+        pagesWrap.innerHTML = '';
+        dotsWrap.innerHTML = '';
+        const pageCount = Math.ceil(EMOJI_LIST.length / EMOJI_PER_PAGE);
+        for (let p = 0; p < pageCount; p++) {
+            const page = document.createElement('div');
+            page.className = 'emoji-picker-page';
+            EMOJI_LIST.slice(p * EMOJI_PER_PAGE, (p + 1) * EMOJI_PER_PAGE).forEach(emo => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'emoji-btn-item';
+                btn.textContent = emo;
+                btn.addEventListener('click', function(e){ e.stopPropagation(); insertEmoji(emo); });
+                page.appendChild(btn);
+            });
+            pagesWrap.appendChild(page);
+
+            if (pageCount > 1) {
+                const dot = document.createElement('button');
+                dot.type = 'button';
+                dot.className = 'emoji-picker-dot' + (p === 0 ? ' active' : '');
+                dot.setAttribute('aria-label', 'Trang emoji ' + (p + 1));
+                dot.addEventListener('click', function(e){
+                    e.stopPropagation();
+                    pagesWrap.scrollTo({ left: p * pagesWrap.clientWidth, behavior: 'smooth' });
+                });
+                dotsWrap.appendChild(dot);
+            }
+        }
+    }
+    function insertEmoji(emo){
+        const input = document.getElementById('chat-text-input');
+        const start = input.selectionStart != null ? input.selectionStart : input.value.length;
+        const end = input.selectionEnd != null ? input.selectionEnd : input.value.length;
+        input.value = input.value.slice(0, start) + emo + input.value.slice(end);
+        const pos = start + emo.length;
+        input.focus();
+        input.setSelectionRange(pos, pos);
+    }
+    function updateEmojiPagerDots(){
+        const pagesWrap = document.getElementById('emoji-picker-pages');
+        if (!pagesWrap.clientWidth) return;
+        const idx = Math.round(pagesWrap.scrollLeft / pagesWrap.clientWidth);
+        document.querySelectorAll('#emoji-picker-dots .emoji-picker-dot').forEach((d, i) => {
+            d.classList.toggle('active', i === idx);
+        });
+    }
+    document.getElementById('emoji-picker-pages').addEventListener('scroll', function(){
+        requestAnimationFrame(updateEmojiPagerDots);
+    });
+    function openEmojiPicker(){ document.getElementById('emoji-picker').classList.add('open'); }
+    function closeEmojiPicker(){ document.getElementById('emoji-picker').classList.remove('open'); }
+    function toggleEmojiPicker(){ document.getElementById('emoji-picker').classList.toggle('open'); }
+
+    const emojiPickerWrap = document.getElementById('emoji-picker-wrap');
+    document.getElementById('chat-emoji-btn').addEventListener('click', function(e){
+        e.stopPropagation();
+        toggleEmojiPicker();
+    });
+    // Rê chuột vào là mở luôn (giống các app chat trên desktop); trên di động dùng click ở trên
+    emojiPickerWrap.addEventListener('mouseenter', openEmojiPicker);
+    emojiPickerWrap.addEventListener('mouseleave', closeEmojiPicker);
+    document.addEventListener('click', function(e){
+        if (!emojiPickerWrap.contains(e.target)) closeEmojiPicker();
+    });
+    buildEmojiPicker();
     if (chatName) document.getElementById('chat-name-input').value = chatName;
     updateChatActionUI();
 
@@ -1091,6 +1211,7 @@
             document.getElementById('chat-name-submit').disabled = true;
             document.getElementById('chat-text-input').disabled = true;
             document.getElementById('chat-send-btn').disabled = true;
+            document.getElementById('chat-emoji-btn').disabled = true;
             document.getElementById('chat-hint').textContent = 'Ngoại tuyến — chat không khả dụng.';
             return;
         }
