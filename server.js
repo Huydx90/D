@@ -1,25 +1,73 @@
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
-const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
 
 const app = express();
 app.set('trust proxy', true); // chạy sau reverse proxy (Render.com...), cần để Express hiểu header X-Forwarded-For
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-const PORT = 3000;
-const DATA_FILE = path.join(__dirname, 'lineup-data.json');
-const LOG_FILE = path.join(__dirname, 'lineup-log.json');
-const MAX_LOG_ENTRIES = 1000; // chỉ giữ lại 1000 dòng nhật ký gần nhất
-const CHAT_FILE = path.join(__dirname, 'chat-log.json');
+const PORT = process.env.PORT || 3000; // Render tự cấp PORT qua biến môi trường, không cố định 3000
+const MAX_LOG_ENTRIES = 1000;   // chỉ giữ lại 1000 dòng nhật ký gần nhất
 const MAX_CHAT_MESSAGES = 5000; // chỉ giữ lại 5000 dòng chat gần nhất
+
+// ===== Kết nối PostgreSQL =====
+// CHỈ đọc từ biến môi trường DATABASE_URL (đặt trong tab Environment của Render) — không hard-code
+// chuỗi kết nối/mật khẩu trong code để tránh lộ khi đẩy lên GitHub hay chia sẻ file.
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+    console.error('❌ Thiếu biến môi trường DATABASE_URL. Vào Render → Web Service → Environment để thêm.');
+    process.exit(1);
+}
+// Internal Database URL (dạng "...@dpg-xxxx-a/dbname", không có ".render.com") chạy nội bộ trong
+// cùng region, không cần SSL. External Database URL (có "...render.com") bắt buộc phải bật SSL.
+const isExternalUrl = /\.render\.com/.test(connectionString);
+const pool = new Pool({
+    connectionString,
+    ssl: isExternalUrl ? { rejectUnauthorized: false } : false
+});
+
+pool.on('error', (err) => {
+    // Lỗi trên 1 connection đang rảnh trong pool - log lại thay vì để crash cả server
+    console.error('Lỗi không mong đợi từ PostgreSQL pool:', err);
+});
+
+// Tạo bảng nếu chưa có (chạy 1 lần khi server khởi động)
+async function initDatabase() {
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS lineup_data (
+            id INT PRIMARY KEY,
+            data JSONB NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+    `);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS lineup_logs (
+            id SERIAL PRIMARY KEY,
+            time TIMESTAMPTZ NOT NULL,
+            ip TEXT,
+            action TEXT
+        )
+    `);
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id SERIAL PRIMARY KEY,
+            msg_id TEXT,
+            time TIMESTAMPTZ NOT NULL,
+            ip TEXT,
+            name TEXT,
+            text TEXT
+        )
+    `);
+    console.log('✅ Đã kết nối PostgreSQL và kiểm tra xong cấu trúc bảng.');
+}
 
 // Serve static files
 app.use(express.static(__dirname));
 
-// Default lineup data
+// Default lineup data - chỉ dùng khi bảng lineup_data trong DB đang trống (lần chạy đầu tiên)
 const defaultData = {
     players: {
         'gk': { name: 'Tân Long', position: 'Thủ môn' },
@@ -53,83 +101,89 @@ const defaultData = {
     }
 };
 
-// Load data from file or use default
-function loadData() {
+// ===== Đội hình: lưu 1 dòng duy nhất (id = 1) trong bảng lineup_data =====
+async function loadData() {
     try {
-        if (fs.existsSync(DATA_FILE)) {
-            const data = fs.readFileSync(DATA_FILE, 'utf8');
-            return JSON.parse(data);
-        }
+        const res = await pool.query('SELECT data FROM lineup_data WHERE id = 1');
+        if (res.rows.length > 0) return res.rows[0].data;
     } catch (err) {
-        console.error('Error loading data:', err);
+        console.error('Lỗi đọc lineup_data:', err);
     }
     return defaultData;
 }
 
-// Save data to file
-function saveData(data) {
+async function saveData(data) {
     try {
-        fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+        await pool.query(
+            `INSERT INTO lineup_data (id, data, updated_at) VALUES (1, $1, now())
+             ON CONFLICT (id) DO UPDATE SET data = $1, updated_at = now()`,
+            [JSON.stringify(data)]
+        );
         return true;
     } catch (err) {
-        console.error('Error saving data:', err);
+        console.error('Lỗi ghi lineup_data:', err);
         return false;
     }
 }
 
-// ===== Nhật ký chỉnh sửa (edit log) =====
-function loadLog() {
+// ===== Nhật ký chỉnh sửa (edit log) - mới nhất trước, tối đa MAX_LOG_ENTRIES dòng =====
+async function loadLog() {
     try {
-        if (fs.existsSync(LOG_FILE)) {
-            return JSON.parse(fs.readFileSync(LOG_FILE, 'utf8'));
-        }
+        const res = await pool.query(
+            'SELECT time, ip, action FROM lineup_logs ORDER BY id DESC LIMIT $1',
+            [MAX_LOG_ENTRIES]
+        );
+        return res.rows.map(r => ({ time: r.time.toISOString(), ip: r.ip, action: r.action }));
     } catch (err) {
-        console.error('Error loading log:', err);
-    }
-    return [];
-}
-
-function appendLog(entry) {
-    const log = loadLog();
-    log.unshift(entry); // mới nhất lên đầu
-    if (log.length > MAX_LOG_ENTRIES) log.length = MAX_LOG_ENTRIES;
-    try {
-        fs.writeFileSync(LOG_FILE, JSON.stringify(log, null, 2));
-    } catch (err) {
-        console.error('Error saving log:', err);
-    }
-    return log;
-}
-
-// ===== Chat nội bộ =====
-function loadChat() {
-    try {
-        if (fs.existsSync(CHAT_FILE)) {
-            return JSON.parse(fs.readFileSync(CHAT_FILE, 'utf8'));
-        }
-    } catch (err) {
-        console.error('Error loading chat:', err);
-    }
-    return [];
-}
-
-function saveChat(messages) {
-    try {
-        fs.writeFileSync(CHAT_FILE, JSON.stringify(messages, null, 2));
-    } catch (err) {
-        console.error('Error saving chat:', err);
+        console.error('Lỗi đọc lineup_logs:', err);
+        return [];
     }
 }
 
-// Thêm 1 tin nhắn mới vào cuối mảng (mới nhất ở cuối), cắt bớt tin cũ nhất nếu vượt quá giới hạn
-function appendChatMessage(entry) {
-    const messages = loadChat();
-    messages.push(entry);
-    if (messages.length > MAX_CHAT_MESSAGES) {
-        messages.splice(0, messages.length - MAX_CHAT_MESSAGES);
+async function appendLog(entry) {
+    try {
+        await pool.query(
+            'INSERT INTO lineup_logs (time, ip, action) VALUES ($1, $2, $3)',
+            [entry.time, entry.ip, entry.action]
+        );
+        // Xoá bớt các dòng cũ vượt quá giới hạn để bảng không phình to vô hạn
+        await pool.query(
+            'DELETE FROM lineup_logs WHERE id NOT IN (SELECT id FROM lineup_logs ORDER BY id DESC LIMIT $1)',
+            [MAX_LOG_ENTRIES]
+        );
+    } catch (err) {
+        console.error('Lỗi ghi lineup_logs:', err);
     }
-    saveChat(messages);
-    return messages;
+}
+
+// ===== Chat nội bộ - lưu theo thứ tự thời gian tăng dần, tối đa MAX_CHAT_MESSAGES dòng =====
+async function loadChat() {
+    try {
+        const res = await pool.query(`
+            SELECT msg_id AS id, time, ip, name, text
+            FROM (SELECT * FROM chat_messages ORDER BY id DESC LIMIT $1) recent
+            ORDER BY id ASC
+        `, [MAX_CHAT_MESSAGES]);
+        return res.rows.map(r => ({ id: r.id, time: r.time.toISOString(), ip: r.ip, name: r.name, text: r.text }));
+    } catch (err) {
+        console.error('Lỗi đọc chat_messages:', err);
+        return [];
+    }
+}
+
+async function appendChatMessage(entry) {
+    try {
+        await pool.query(
+            'INSERT INTO chat_messages (msg_id, time, ip, name, text) VALUES ($1, $2, $3, $4, $5)',
+            [entry.id, entry.time, entry.ip, entry.name, entry.text]
+        );
+        await pool.query(
+            'DELETE FROM chat_messages WHERE id NOT IN (SELECT id FROM chat_messages ORDER BY id DESC LIMIT $1)',
+            [MAX_CHAT_MESSAGES]
+        );
+    } catch (err) {
+        console.error('Lỗi ghi chat_messages:', err);
+    }
 }
 
 // Gom vị trí hiện tại của từng cầu thủ (trên sân hay dự bị) để so sánh trước/sau
@@ -182,21 +236,20 @@ function describeChanges(oldData, newData) {
     return changes.join('; ');
 }
 
-// API endpoints
-app.get('/api/data', (req, res) => {
-    const data = loadData();
-    res.json(data);
+// ===== API endpoints (chuyển sang async/await vì giờ đọc/ghi PostgreSQL) =====
+app.get('/api/data', async (req, res) => {
+    res.json(await loadData());
 });
 
-app.get('/api/log', (req, res) => {
-    res.json({ log: loadLog() });
+app.get('/api/log', async (req, res) => {
+    res.json({ log: await loadLog() });
 });
 
-app.get('/api/chat', (req, res) => {
-    res.json({ messages: loadChat() });
+app.get('/api/chat', async (req, res) => {
+    res.json({ messages: await loadChat() });
 });
 
-app.post('/api/data', express.json(), (req, res) => {
+app.post('/api/data', express.json(), async (req, res) => {
     const requesterClientId = req.body && req.body.clientId;
 
     // Reject saves from a client that doesn't currently hold the edit lock
@@ -208,14 +261,14 @@ app.post('/api/data', express.json(), (req, res) => {
         });
     }
 
-    const oldData = loadData(); // lấy trạng thái trước khi ghi đè, để so sánh sinh nhật ký
+    const oldData = await loadData(); // lấy trạng thái trước khi ghi đè, để so sánh sinh nhật ký
     const newData = { ...req.body };
-    delete newData.clientId; // don't persist this into the lineup file
+    delete newData.clientId; // don't persist this into the DB row
 
-    if (saveData(newData)) {
+    if (await saveData(newData)) {
         const ip = getClientIp(req);
         const entry = { time: new Date().toISOString(), ip, action: describeChanges(oldData, newData) };
-        appendLog(entry);
+        await appendLog(entry);
 
         // Broadcast to all connected clients
         broadcast(JSON.stringify({ type: 'update', data: newData }));
@@ -263,7 +316,7 @@ function releaseLock() {
 
 let nextClientId = 1;
 
-wss.on('connection', (ws, req) => {
+wss.on('connection', async (ws, req) => {
     ws.clientId = 'c' + (nextClientId++);
     ws.ip = getClientIp(req);
     console.log('New client connected:', ws.clientId, ws.ip);
@@ -273,18 +326,22 @@ wss.on('connection', (ws, req) => {
     // Tell this client who it is
     ws.send(JSON.stringify({ type: 'welcome', clientId: ws.clientId, ip: ws.ip }));
 
-    // Send current data to new client
-    const data = loadData();
-    ws.send(JSON.stringify({ type: 'init', data: data }));
-    ws.send(JSON.stringify({ type: 'log_init', log: loadLog() }));
-    ws.send(JSON.stringify({ type: 'chat_init', messages: loadChat() }));
+    // Send current data to new client (đọc từ PostgreSQL)
+    try {
+        const data = await loadData();
+        ws.send(JSON.stringify({ type: 'init', data: data }));
+        ws.send(JSON.stringify({ type: 'log_init', log: await loadLog() }));
+        ws.send(JSON.stringify({ type: 'chat_init', messages: await loadChat() }));
+    } catch (err) {
+        console.error('Lỗi gửi dữ liệu ban đầu cho client:', err);
+    }
 
     // Let the new client know if editing is currently locked by someone
     if (editLock) {
         ws.send(JSON.stringify({ type: 'lock_status', locked: true, clientId: editLock.clientId, ip: editLock.ip }));
     }
 
-    ws.on('message', (message) => {
+    ws.on('message', async (message) => {
         try {
             const data = JSON.parse(message);
 
@@ -293,7 +350,7 @@ wss.on('connection', (ws, req) => {
                 if (editLock && editLock.clientId !== ws.clientId) {
                     return; // ignore edits from a client that doesn't hold the lock
                 }
-                saveData(data.data);
+                await saveData(data.data);
                 broadcast(message);
             } else if (data.type === 'lock_request') {
                 if (!editLock || editLock.clientId === ws.clientId) {
@@ -320,7 +377,7 @@ wss.on('connection', (ws, req) => {
                     name,
                     text
                 };
-                appendChatMessage(entry);
+                await appendChatMessage(entry);
                 broadcast(JSON.stringify({ type: 'chat_message', entry }));
             }
         } catch (err) {
@@ -369,41 +426,24 @@ function broadcastOnlineList() {
     broadcast(JSON.stringify({ type: 'online_list', clients: getOnlineList() }));
 }
 
-function getLanIps() {
-    const nets = require('os').networkInterfaces();
-    const ips = [];
-    for (const name of Object.keys(nets)) {
-        for (const net of nets[name]) {
-            if (net.family === 'IPv4' && !net.internal) {
-                ips.push(net.address);
-            }
-        }
-    }
-    return ips;
-}
-
-server.listen(PORT, '0.0.0.0', () => {
-    const lanIps = getLanIps();
-    const lanLines = lanIps.length
-        ? lanIps.map(ip => `║   📡 LAN:     http://${ip}:${PORT}`).join('\n')
-        : '║   (Không tìm thấy IP mạng LAN - kiểm tra kết nối mạng)';
-    console.log(`
+// Khởi tạo bảng trong PostgreSQL rồi mới bắt đầu lắng nghe kết nối
+initDatabase()
+    .then(() => {
+        server.listen(PORT, '0.0.0.0', () => {
+            console.log(`
 ╔═══════════════════════════════════════════════════════════╗
-║                                                           ║
 ║   🏆  ĐỘI HÌNH BÓNG ĐÁ SERVER ĐÃ KHỞI ĐỘNG  🏆           ║
-║                                                           ║
-║   📡 Máy này: http://localhost:${PORT}
-${lanLines}
-║   💾 Data file: ${DATA_FILE}
-║                                                           ║
-║   👉 Các máy khác trong CÙNG mạng LAN/WiFi truy cập      ║
-║      bằng địa chỉ LAN ở trên để cùng chỉnh đội hình.     ║
-║                                                           ║
-║   Nhấn Ctrl+C để dừng server                             ║
-║                                                           ║
+║   📡 Đang lắng nghe ở port ${PORT}
+║   💾 Dữ liệu lưu trên PostgreSQL (Render)
+║   Nhấn Ctrl+C để dừng server
 ╚═══════════════════════════════════════════════════════════╝
-    `);
-});
+            `);
+        });
+    })
+    .catch((err) => {
+        console.error('❌ Không khởi tạo được database, dừng server:', err);
+        process.exit(1);
+    });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
@@ -412,7 +452,9 @@ process.on('SIGINT', () => {
         client.close();
     });
     server.close(() => {
-        console.log('Server đã tắt.');
-        process.exit(0);
+        pool.end(() => {
+            console.log('Server và kết nối PostgreSQL đã tắt.');
+            process.exit(0);
+        });
     });
 });
