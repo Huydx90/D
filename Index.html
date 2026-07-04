@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Đội hình sân 7</title>
+<style>
+    :root{
+        --pitch-1:#0f2e1c;
+        --pitch-2:#1c5a34;
+        --pitch-3:#276b3d;
+        --line: rgba(255,255,255,.55);
+        --paper:#f6f4ec;
+        --ink:#122016;
+        --ink-soft:#5b6b5e;
+        --gk:#f2a53c;
+        --df:#3f8cf3;
+        --mf:#f4efe1;
+        --fw:#e6564a;
+        --bench:#274b73;
+        --free:#8a8f98;
+        --gold:#ffcf5c;
+        --danger:#e6564a;
+        --ok:#4caf7d;
+        --radius-lg:16px;
+        --radius-md:12px;
+        --radius-sm:8px;
+        --shadow-1: 0 4px 14px rgba(0,0,0,.22);
+        --shadow-2: 0 10px 30px rgba(0,0,0,.35);
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    *{ margin:0; padding:0; box-sizing:border-box; }
+    html, body{
+        touch-action: manipulation; /* chặn double-tap zoom, không cản kéo/pan bình thường */
+        overscroll-behavior-y: contain; /* chặn kéo xuống refresh khi thao tác gần mép trên */
+    }
+    body{
+        font-family: var(--font);
+        color: var(--ink);
+        background: linear-gradient(165deg, var(--pitch-1) 0%, var(--pitch-2) 55%, var(--pitch-1) 100%);
+        min-height:100vh;
+        padding-bottom: 24px;
+    }
+    button{ font-family:inherit; }
+
+    /* ===== App bar ===== */
+    .appbar{
+        position: sticky; top:0; z-index: 200;
+        display:flex; align-items:center; justify-content:space-between;
+        gap:10px; padding: 10px 14px;
+        background: rgba(10,22,14,.55);
+        backdrop-filter: blur(6px);
+        border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .appbar-title{ color:#fff; font-weight:800; font-size:1.05em; letter-spacing:.2px; display:flex; align-items:center; gap:8px; }
+    .appbar-title small{ display:block; font-weight:500; font-size:.62em; color:#cfe8d6; opacity:.85; }
+    .status-pill{
+        display:flex; align-items:center; gap:6px;
+        padding:6px 10px; border-radius:20px; font-size:.75em; font-weight:700;
+        background: rgba(0,0,0,.28); color:#fff; white-space:nowrap;
+    }
+    .status-dot{ width:8px; height:8px; border-radius:50%; background:var(--danger); flex-shrink:0; }
+    .status-pill.connected .status-dot{ background: var(--ok); }
+    .status-pill.offline .status-dot{ background: var(--free); }
+
+    .lock-strip{
+        max-height:0; overflow:hidden; opacity:0;
+        transition: max-height .2s ease, opacity .2s ease;
+        background: linear-gradient(90deg, #a8620f, #8a4d0a);
+        color:#fff; font-size:.82em; font-weight:700; text-align:center;
+    }
+    .lock-strip.active{ max-height:44px; opacity:1; padding:8px 10px; }
+
+    /* ===== Layout ===== */
+    .layout{
+        display:grid; grid-template-columns: 1fr; gap:14px;
+        padding: 12px; max-width: 1100px; margin: 0 auto;
+    }
+    @media (min-width: 900px){
+        .layout{ grid-template-columns: minmax(0,1fr) 300px; align-items:start; }
+    }
+
+    /* ===== Field ===== */
+    .field-card{
+        background: linear-gradient(180deg, var(--pitch-3) 0%, var(--pitch-2) 60%, var(--pitch-3) 100%);
+        border-radius: var(--radius-lg);
+        padding: 10px;
+        box-shadow: var(--shadow-2);
+    }
+    .field-card-head{
+        display:flex; align-items:center; justify-content:space-between;
+        color:#eafff0; padding: 2px 4px 8px;
+    }
+    .field-card-head h2{ font-size:.95em; font-weight:800; }
+    .field-card-head p{ font-size:.72em; color:#c6e8cf; margin-top:2px; }
+    .reset-btn{
+        background: rgba(0,0,0,.28); color:#fff; border:1px solid rgba(255,255,255,.25);
+        padding:6px 10px; border-radius:20px; font-size:.72em; font-weight:700; cursor:pointer;
+        touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+    }
+    .reset-btn:active{ transform: scale(.96); }
+
+    .field{
+        position:relative; width:100%; aspect-ratio: 4/3;
+        border:2px solid var(--line); border-radius:10px; overflow:hidden;
+        background: repeating-linear-gradient(
+            90deg,
+            var(--pitch-2), var(--pitch-2) 10%,
+            var(--pitch-3) 10%, var(--pitch-3) 20%
+        );
+    }
+    .field.drag-over{ outline: 3px dashed var(--ok); outline-offset: -6px; }
+    .field::before{
+        content:''; position:absolute; top:50%; left:0; right:0; height:2px;
+        background: var(--line); transform: translateY(-50%);
+    }
+    .center-circle{
+        position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+        width:20%; aspect-ratio:1; border:2px solid var(--line); border-radius:50%;
+    }
+    .center-spot{
+        position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+        width:7px; height:7px; background:var(--line); border-radius:50%;
+    }
+    .goal{ position:absolute; top:50%; width:15%; height:34%; transform:translateY(-50%); border:2px solid var(--line); }
+    .goal-left{ left:0; border-left:none; border-radius:0 8px 8px 0; }
+    .goal-right{ right:0; border-right:none; border-radius:8px 0 0 8px; }
+
+    .player{
+        position:absolute; display:flex; flex-direction:column; align-items:center;
+        transform:translate(-50%,-50%); z-index:10; cursor:grab; touch-action:none;
+        -webkit-user-select:none; -moz-user-select:none; user-select:none;
+        -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent;
+    }
+    .player:active{ cursor:grabbing; }
+    .player.dragging{ opacity:.85; z-index:1000; }
+    .player.swap-target{ outline:3px solid var(--gold); outline-offset:4px; border-radius:16px; }
+    .player.swap-highlight{ animation: pulse .35s ease-in-out; }
+    @keyframes pulse{
+        0%{ filter:none; } 50%{ filter: drop-shadow(0 0 10px var(--gold)); } 100%{ filter:none; }
+    }
+    .player-avatar{
+        position:relative;
+        width:44px; height:44px; border-radius:50%;
+        display:flex; align-items:center; justify-content:center;
+        font-weight:800; font-size:.78em; color:#12241a;
+        border:2px solid rgba(255,255,255,.9); box-shadow: var(--shadow-1);
+    }
+    .player[data-role="gk"] .player-avatar{ background: var(--gk); }
+    .player[data-role="df"] .player-avatar{ background: var(--df); color:#fff; }
+    .player[data-role="mf"] .player-avatar{ background: var(--mf); }
+    .player[data-role="fw"] .player-avatar{ background: var(--fw); color:#fff; }
+    .player[data-role="bench"] .player-avatar,
+    .player[data-role="free"] .player-avatar{ background: var(--free); color:#fff; }
+
+    .player-stats-preview{
+        display:flex; align-items:flex-end; gap:2px;
+        width:26px; height:26px; padding:2px;
+        background: rgba(0,0,0,.32); border-radius:4px; margin-bottom:3px;
+        border:1px solid rgba(255,255,255,.25);
+    }
+    .player-stats-preview .stat-bar{
+        flex:1; min-height:2px; border-radius:1px 1px 0 0;
+    }
+    .stat-bar.b-health{ background: #ff6b5e; }
+    .stat-bar.b-skill{ background: #5b9dff; }
+    .stat-bar.b-stamina{ background: #5cd889; }
+    .stat-bar.b-speed{ background: #ffc24b; }
+    .player-info{
+        position:absolute; top:-6px; right:-6px; width:20px; height:20px; border-radius:50%;
+        background: rgba(10,20,14,.75); color:#fff; border:1px solid rgba(255,255,255,.65);
+        font-size:.62em; font-style:italic; font-weight:700; display:flex; align-items:center; justify-content:center;
+        cursor:pointer; line-height:1; touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+    }
+    .player-info::before{
+        content:''; position:absolute; inset:-8px; /* vùng chạm ảo lớn hơn cho ngón tay */
+    }
+    .player-name{
+        margin-top:3px; background: rgba(8,16,10,.82); color:#fff;
+        padding:2px 7px; border-radius:14px; font-size:.66em; font-weight:700;
+        white-space:nowrap; max-width:88px; overflow:hidden; text-overflow:ellipsis;
+    }
+
+    .legend{ display:flex; flex-wrap:wrap; gap:10px; padding:8px 4px 2px; justify-content:center; }
+    .legend-item{ display:flex; align-items:center; gap:5px; font-size:.68em; color:#dff0e4; font-weight:600; }
+    .legend-dot{ width:10px; height:10px; border-radius:50%; border:1px solid rgba(255,255,255,.6); }
+    .legend-dot.gk{ background:var(--gk); } .legend-dot.df{ background:var(--df); }
+    .legend-dot.mf{ background:var(--mf); } .legend-dot.fw{ background:var(--fw); }
+    .legend-dot.free{ background:var(--free); }
+
+    .hint{
+        margin-top:10px; background: rgba(0,0,0,.22); color:#dff0e4; border-radius:var(--radius-md);
+        padding:9px 12px; font-size:.72em; line-height:1.5;
+    }
+
+    /* ===== Side panel / stacked sections ===== */
+    .panel{ display:flex; flex-direction:column; gap:12px; }
+    .card{ background: var(--paper); border-radius: var(--radius-lg); padding:12px; box-shadow: var(--shadow-1); }
+    .card-title{ display:flex; align-items:center; justify-content:space-between; font-weight:800; font-size:.9em; color:var(--ink); margin-bottom:8px; }
+    .card-title .count{ font-weight:700; color:var(--ink-soft); font-size:.85em; }
+
+    .bench-list{ display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch; }
+    @media (min-width:900px){ .bench-list{ flex-wrap:wrap; overflow-x:visible; } }
+
+    .substitute-badge{
+        position:relative; flex-shrink:0; display:flex; align-items:center; gap:6px;
+        background: var(--bench); color:#fff; padding:7px 20px 7px 10px; border-radius:20px;
+        font-size:.78em; font-weight:700; cursor:grab; touch-action:none;
+        -webkit-user-select:none; -moz-user-select:none; user-select:none;
+        -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent;
+    }
+    .substitute-badge.dragging{ opacity:.6; }
+    .substitute-badge.swap-target{ outline:3px solid var(--gold); outline-offset:2px; }
+    .substitute-badge .player-info{ top:50%; right:2px; transform:translateY(-50%); }
+
+    .staff-row{ display:flex; flex-wrap:wrap; gap:8px; }
+    .staff-chip{
+        display:flex; align-items:center; gap:8px; background:#fff; border:1px solid #e6e1d1;
+        border-radius:20px; padding:6px 12px 6px 6px;
+    }
+    .staff-avatar{ width:28px; height:28px; border-radius:50%; background:linear-gradient(145deg,#ff9800,#f57c00); display:flex; align-items:center; justify-content:center; font-size:.85em; }
+    .staff-chip strong{ display:block; font-size:.78em; }
+    .staff-chip span{ display:block; font-size:.65em; color:var(--ink-soft); }
+
+    #substitutes-card.drag-over{ outline:3px dashed var(--ok); outline-offset:-4px; background: rgba(76,175,125,.08); }
+
+    #log-toggle{ cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent; }
+    .log-list{
+        max-height:0; overflow:hidden; display:flex; flex-direction:column; gap:6px;
+        transition: max-height .2s ease;
+    }
+    .log-list.open{ max-height:280px; overflow-y:auto; margin-top:6px; padding-right:2px; }
+    .log-entry{ background:#fff; border:1px solid #e6e1d1; border-radius:8px; padding:6px 9px; font-size:.72em; }
+    .log-entry .log-meta{ display:flex; justify-content:space-between; gap:8px; color:var(--ink-soft); font-weight:700; margin-bottom:2px; }
+    .log-entry .log-action{ color:var(--ink); word-break:break-word; }
+    .log-empty{ font-size:.75em; color:var(--ink-soft); padding:6px 2px; }
+
+    /* ===== Modal ===== */
+    .modal-overlay{
+        position:fixed; inset:0; background: rgba(0,0,0,.65);
+        display:none; align-items:center; justify-content:center; z-index:1000; padding:16px;
+    }
+    .modal-overlay.active{ display:flex; }
+    .player-modal{ background: var(--paper); border-radius:18px; padding:22px; width:100%; max-width:420px; }
+    .modal-header{ display:flex; align-items:center; gap:12px; margin-bottom:18px; padding-bottom:12px; border-bottom:2px solid #e6e1d1; }
+    .modal-avatar{ width:48px; height:48px; border-radius:50%; background: var(--bench); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; }
+    .modal-title h2{ font-size:1.15em; color:var(--ink); }
+    .modal-title p{ font-size:.8em; color:var(--ink-soft); }
+    .modal-close{ margin-left:auto; background:none; border:none; font-size:1.5em; cursor:pointer; color:#999; line-height:1; }
+    .stats-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
+    .stat-item{ background:#fff; padding:12px; border-radius:12px; border:1px solid #eee7d4; }
+    .stat-label{ font-size:.78em; color:var(--ink-soft); margin-bottom:6px; }
+    .stat-slider{ width:100%; height:6px; border-radius:4px; background:#e0dccb; -webkit-appearance:none; }
+    .stat-slider::-webkit-slider-thumb{ -webkit-appearance:none; width:18px; height:18px; border-radius:50%; background: var(--bench); cursor:pointer; }
+    .stat-value{ font-size:1.15em; font-weight:800; text-align:right; margin-top:4px; font-variant-numeric: tabular-nums; }
+    .stat-health{ color:#d5453a; } .stat-skill{ color:#2f7fd6; } .stat-stamina{ color:#3f9e64; } .stat-speed{ color:#d98a1c; }
+    .modal-actions{ display:flex; gap:10px; justify-content:flex-end; }
+    .btn{ padding:11px 20px; border-radius:10px; font-size:.9em; font-weight:700; cursor:pointer; border:none; }
+    .btn-save{ background: var(--ok); color:#fff; }
+    .btn-cancel{ background:#e6e1d1; color:#555; }
+
+    /* ===== Phones ===== */
+    @media (max-width:420px){
+        .appbar-title{ font-size:.95em; }
+        #connection-text{ display:none; }
+        .status-pill{ padding:6px; border-radius:50%; }
+        .player-avatar{ width:36px; height:36px; font-size:.68em; }
+        .player-stats-preview{ width:22px; height:20px; }
+        .player-name{ font-size:.58em; max-width:70px; padding:1px 5px; }
+        .player-info{ width:14px; height:14px; font-size:.55em; }
+        .legend-item{ font-size:.62em; }
+    }
+</style>
+</head>
+<body>
+    <header class="appbar">
+        <div class="appbar-title">
+            ⚽ Đội hình sân 7
+            <small id="formation-subtitle">Sơ đồ 2‑3‑1</small>
+        </div>
+        <div class="status-pill disconnected" id="connection-status">
+            <span class="status-dot"></span><span id="connection-text">Đang kết nối…</span>
+        </div>
+    </header>
+    <div class="lock-strip" id="lock-banner"></div>
+
+    <main class="layout">
+        <section>
+            <div class="field-card">
+                <div class="field-card-head">
+                    <div>
+                        <h2 id="formation-title">Sân 7 người</h2>
+                        <p>2 Hậu vệ · 3 Tiền vệ · 1 Tiền đạo</p>
+                    </div>
+                    <button class="reset-btn" id="reset-btn" type="button">↺ Đặt lại đội hình</button>
+                </div>
+                <div class="field" id="field">
+                    <div class="center-circle"></div>
+                    <div class="center-spot"></div>
+                    <div class="goal goal-left"></div>
+                    <div class="goal goal-right"></div>
+                </div>
+                <div class="legend">
+                    <span class="legend-item"><span class="legend-dot gk"></span>Thủ môn</span>
+                    <span class="legend-item"><span class="legend-dot df"></span>Hậu vệ</span>
+                    <span class="legend-item"><span class="legend-dot mf"></span>Tiền vệ</span>
+                    <span class="legend-item"><span class="legend-dot fw"></span>Tiền đạo</span>
+                    <span class="legend-item"><span class="legend-dot free"></span>Tự do</span>
+                </div>
+            </div>
+            <div class="hint">
+                👉 Chạm 1 cầu thủ rồi chạm người thứ 2 để đổi chỗ · Giữ và kéo để di chuyển tự do hoặc đưa xuống ghế dự bị · Chạm dấu <b>ⓘ</b> trên mỗi cầu thủ để xem/sửa chỉ số.
+            </div>
+        </section>
+
+        <aside class="panel">
+            <div class="card" id="substitutes-card">
+                <div class="card-title">🔄 Cầu thủ dự bị <span class="count" id="bench-count"></span></div>
+                <div class="bench-list" id="substitutes-list"></div>
+            </div>
+            <div class="card">
+                <div class="card-title">👔 Ban huấn luyện</div>
+                <div class="staff-row">
+                    <div class="staff-chip"><div class="staff-avatar">👨‍💼</div><div><strong>Hà</strong><span>HLV trưởng</span></div></div>
+                    <div class="staff-chip"><div class="staff-avatar">👨‍💼</div><div><strong>Xuân Huy</strong><span>HLV phó</span></div></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title" id="log-toggle" role="button" tabindex="0">
+                    📝 Nhật ký chỉnh sửa <span class="count" id="log-toggle-icon">▾</span>
+                </div>
+                <div class="log-list" id="log-list"></div>
+            </div>
+        </aside>
+    </main>
+
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="player-modal">
+            <div class="modal-header">
+                <div class="modal-avatar" id="modal-avatar">?</div>
+                <div class="modal-title">
+                    <h2 id="modal-name">Tên cầu thủ</h2>
+                    <p id="modal-position">Vị trí</p>
+                </div>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-label">❤️ Sức khỏe</div>
+                    <input type="range" class="stat-slider" id="stat-health" min="0" max="100">
+                    <div class="stat-value stat-health" id="value-health">80</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">⭐ Kỹ năng</div>
+                    <input type="range" class="stat-slider" id="stat-skill" min="0" max="100">
+                    <div class="stat-value stat-skill" id="value-skill">75</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">💪 Thể lực</div>
+                    <input type="range" class="stat-slider" id="stat-stamina" min="0" max="100">
+                    <div class="stat-value stat-stamina" id="value-stamina">85</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">⚡ Tốc độ</div>
+                    <input type="range" class="stat-slider" id="stat-speed" min="0" max="100">
+                    <div class="stat-value stat-speed" id="value-speed">70</div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" onclick="closeModal()">Hủy</button>
+                <button class="btn btn-save" onclick="savePlayerStats()">💾 Lưu</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const playerData = {};
+    const allPlayers = {
+        'Tân Long': { health: 85, skill: 70, stamina: 80, speed: 65, position: 'Thủ môn' },
+        'Phúc Lâm': { health: 80, skill: 75, stamina: 85, speed: 70, position: 'Hậu vệ' },
+        'Chung': { health: 82, skill: 73, stamina: 83, speed: 68, position: 'Hậu vệ' },
+        'Sếp Hải': { health: 78, skill: 85, stamina: 80, speed: 75, position: 'Tiền vệ' },
+        'Chứ': { health: 75, skill: 78, stamina: 82, speed: 80, position: 'Tiền vệ' },
+        'Dũng': { health: 80, skill: 82, stamina: 78, speed: 77, position: 'Tiền vệ' },
+        'A Sĩ': { health: 77, skill: 88, stamina: 75, speed: 85, position: 'Tiền đạo' },
+        'Toàn': { health: 75, skill: 70, stamina: 80, speed: 72, position: 'Dự bị' },
+        'Chính': { health: 78, skill: 72, stamina: 75, speed: 70, position: 'Dự bị' },
+        'Hoàng': { health: 80, skill: 68, stamina: 82, speed: 65, position: 'Dự bị' },
+        'Khánh': { health: 72, skill: 75, stamina: 78, speed: 80, position: 'Dự bị' },
+        'Sơn': { health: 85, skill: 65, stamina: 70, speed: 68, position: 'Dự bị' },
+        'Hùng': { health: 78, skill: 80, stamina: 75, speed: 73, position: 'Dự bị' },
+        'Hiếu': { health: 70, skill: 72, stamina: 85, speed: 75, position: 'Dự bị' },
+        'Dương': { health: 76, skill: 74, stamina: 80, speed: 78, position: 'Dự bị' },
+        'Mỹ Linh': { health: 73, skill: 82, stamina: 77, speed: 82, position: 'Dự bị' },
+        'Khiêm': { health: 80, skill: 70, stamina: 83, speed: 68, position: 'Dự bị' },
+        'Lộc': { health: 77, skill: 76, stamina: 79, speed: 74, position: 'Dự bị' }
+    };
+    Object.assign(playerData, allPlayers);
+
+    const positionNames = {
+        'gk': 'Thủ môn', 'def1': 'Hậu vệ', 'def2': 'Hậu vệ',
+        'mid1': 'Tiền vệ', 'mid2': 'Tiền vệ', 'mid3': 'Tiền vệ', 'fwd': 'Tiền đạo'
+    };
+    const positionAbbr = {
+        'Thủ môn': 'TM', 'Hậu vệ': 'HV', 'Tiền vệ': 'TV', 'Tiền đạo': 'TĐ', 'Dự bị': 'DB', 'Tự do': 'TD'
+    };
+    // Toạ độ mặc định của từng vị trí cố định trên sân (dùng khi không có customLeft/customTop)
+    const slotCoords = {
+        gk:   { left: 8,  top: 50 },
+        def1: { left: 25, top: 35 },
+        def2: { left: 25, top: 65 },
+        mid1: { left: 45, top: 50 },
+        mid2: { left: 60, top: 30 },
+        mid3: { left: 60, top: 70 },
+        fwd:  { left: 75, top: 50 }
+    };
+    // Vai trò hiển thị (màu + viết tắt) tính theo NHÃN vị trí (dùng cho mọi cầu thủ, kể cả kéo tự do)
+    const labelToRole = {
+        'Thủ môn': 'gk', 'Hậu vệ': 'df', 'Tiền vệ': 'mf', 'Tiền đạo': 'fw', 'Dự bị': 'bench', 'Tự do': 'free'
+    };
+    // Khi thả tự do trên sân, vai trò được tính theo vị trí ngang (left%) — càng gần khung thành trái
+    // là Thủ môn, rồi lần lượt Hậu vệ / Tiền vệ / Tiền đạo, khớp với đội hình 2-3-1 mặc định.
+    function roleFromLeftPercent(leftPercent){
+        if (leftPercent < 17) return 'gk';
+        if (leftPercent < 38) return 'df';
+        if (leftPercent < 63) return 'mf';
+        return 'fw';
+    }
+    const roleToLabel = { gk: 'Thủ môn', df: 'Hậu vệ', mf: 'Tiền vệ', fw: 'Tiền đạo' };
+    const roleToAbbr = { gk: 'TM', df: 'HV', mf: 'TV', fw: 'TĐ' };
+    // Cập nhật màu + chữ viết tắt trên avatar ngay khi đang kéo, theo đúng vị trí đang thả
+    function applyDynamicRole(el, leftPercent){
+        const role = roleFromLeftPercent(leftPercent);
+        const label = roleToLabel[role];
+        el.dataset.role = role;
+        el.dataset.position = label;
+        const avatar = el.querySelector('.player-avatar');
+        if (avatar && avatar.firstChild) avatar.firstChild.textContent = roleToAbbr[role];
+    }
+    function statBarsHTML(name){
+        const d = playerData[name] || { health: 0, skill: 0, stamina: 0, speed: 0 };
+        return '<span class="stat-bar b-health" style="height:' + Math.max(8, d.health) + '%"></span>' +
+               '<span class="stat-bar b-skill" style="height:' + Math.max(8, d.skill) + '%"></span>' +
+               '<span class="stat-bar b-stamina" style="height:' + Math.max(8, d.stamina) + '%"></span>' +
+               '<span class="stat-bar b-speed" style="height:' + Math.max(8, d.speed) + '%"></span>';
+    }
+    function refreshPlayerStatBars(name){
+        document.querySelectorAll('.player[data-player="' + CSS.escape(name) + '"] .player-stats-preview').forEach(el => {
+            el.innerHTML = statBarsHTML(name);
+        });
+    }
+
+    const originalPositions = {
+        'gk':   { name: 'Tân Long', pos: 'Thủ môn', left: 8,  top: 50 },
+        'def1': { name: 'Phúc Lâm', pos: 'Hậu vệ',  left: 25, top: 35 },
+        'def2': { name: 'Chung',    pos: 'Hậu vệ',  left: 25, top: 65 },
+        'mid1': { name: 'Sếp Hải',  pos: 'Tiền vệ', left: 45, top: 50 },
+        'mid2': { name: 'Chứ',      pos: 'Tiền vệ', left: 60, top: 30 },
+        'mid3': { name: 'Dũng',     pos: 'Tiền vệ', left: 60, top: 70 },
+        'fwd':  { name: 'A Sĩ',     pos: 'Tiền đạo', left: 75, top: 50 }
+    };
+    const originalSubstitutes = ['Toàn', 'Chính', 'Hoàng', 'Khánh', 'Sơn', 'Hùng', 'Hiếu', 'Dương', 'Mỹ Linh', 'Khiêm', 'Lộc'];
+
+    let currentEditingPlayer = null;
+    let draggedElement = null;
+    let draggedFromSlot = null;
+    let selectedElement = null;
+    let swapTargetElement = null;
+    let isDragging = false;
+    let hasMoved = false;
+    let dragOffsetX = 0, dragOffsetY = 0;
+    let mouseDownX = 0, mouseDownY = 0;
+    const MOVE_THRESHOLD = 6;
+
+    let ws = null;
+    let reconnectTimeout = null;
+    let myClientId = null;
+    let editLock = null; // { clientId, ip } | null
+    let editLog = []; // nhật ký chỉnh sửa, mới nhất ở đầu mảng (server lưu tới 1000 dòng)
+    const LOG_DISPLAY_LIMIT = 100; // chỉ hiển thị 100 dòng gần nhất cho gọn màn hình điện thoại
+
+    function formatLogTime(iso){
+        try {
+            return new Date(iso).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        } catch (err) { return iso; }
+    }
+
+    function renderLog(){
+        const list = document.getElementById('log-list');
+        if (!editLog.length) {
+            list.innerHTML = '<div class="log-empty">Chưa có thay đổi nào được ghi lại.</div>';
+            return;
+        }
+        const shown = editLog.slice(0, LOG_DISPLAY_LIMIT);
+        list.innerHTML = shown.map(() =>
+            '<div class="log-entry"><div class="log-meta"><span class="log-time"></span><span class="log-ip"></span></div>' +
+            '<div class="log-action"></div></div>'
+        ).join('');
+        const rows = list.querySelectorAll('.log-entry');
+        shown.forEach((entry, i) => {
+            rows[i].querySelector('.log-time').textContent = formatLogTime(entry.time);
+            rows[i].querySelector('.log-ip').textContent = entry.ip || '?';
+            rows[i].querySelector('.log-action').textContent = entry.action || '';
+        });
+    }
+
+    document.getElementById('log-toggle').addEventListener('click', function(){
+        const list = document.getElementById('log-list');
+        const icon = document.getElementById('log-toggle-icon');
+        const open = list.classList.toggle('open');
+        icon.textContent = open ? '▴' : '▾';
+    });
+    document.getElementById('log-toggle').addEventListener('keydown', function(e){
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); }
+    });
+    const isFileMode = window.location.protocol === 'file:'; // mở trực tiếp file .html, không qua server
+
+    function isLockedByOther(){ return !!(editLock && editLock.clientId !== myClientId); }
+
+    function requestLock(){
+        if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'lock_request' }));
+    }
+    function releaseLock(){
+        if (editLock && editLock.clientId === myClientId && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'lock_release' }));
+        }
+    }
+    function updateLockUI(){
+        const banner = document.getElementById('lock-banner');
+        const isMine = editLock && editLock.clientId === myClientId;
+        if (editLock && !isMine) {
+            banner.textContent = '🔒 ' + editLock.ip + ' đang chỉnh sửa đội hình…';
+            banner.classList.add('active');
+        } else {
+            banner.classList.remove('active');
+        }
+    }
+    function showLockToast(ip){
+        const banner = document.getElementById('lock-banner');
+        banner.textContent = '🔒 ' + (ip || 'Người khác') + ' đang chỉnh sửa, vui lòng đợi…';
+        banner.classList.add('active');
+        clearTimeout(showLockToast._t);
+        showLockToast._t = setTimeout(() => { if (!isLockedByOther()) banner.classList.remove('active'); }, 1800);
+    }
+    function updateConnectionStatus(connected){
+        const el = document.getElementById('connection-status');
+        const textEl = document.getElementById('connection-text');
+        if (!connected && isFileMode) {
+            // Mở trực tiếp file .html: không có server để nối, đây là trạng thái bình thường
+            // chứ không phải lỗi -> hiển thị nhẹ nhàng thay vì báo đỏ "mất kết nối".
+            el.className = 'status-pill offline';
+            textEl.textContent = 'Ngoại tuyến · chỉnh cục bộ';
+            return;
+        }
+        el.className = 'status-pill ' + (connected ? 'connected' : 'disconnected');
+        textEl.textContent = connected ? 'Trực tuyến' : 'Mất kết nối, đang thử lại…';
+    }
+
+    // Mọi thao tác kéo/thả/đổi chỗ chỉ dựa vào state trong trang (DOM + biến JS),
+    // KHÔNG phụ thuộc vào WebSocket hay server còn sống hay không. connectWebSocket()
+    // chỉ lo việc đồng bộ khi có server, và luôn được bọc an toàn để không bao giờ
+    // ném lỗi làm gãy phần khởi tạo giao diện phía sau nó.
+    function connectWebSocket(){
+        if (isFileMode) { updateConnectionStatus(false); return; } // không có server để nối tới, khỏi thử
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        try {
+            ws = new WebSocket(protocol + '//' + window.location.host);
+        } catch (err) {
+            // Tạo WebSocket thất bại ngay lập tức (host/URL không hợp lệ) -> coi như mất kết nối,
+            // vẫn hẹn thử lại chứ không để lỗi lan ra ngoài.
+            console.warn('Không tạo được WebSocket, sẽ thử lại:', err);
+            updateConnectionStatus(false);
+            reconnectTimeout = setTimeout(connectWebSocket, 3000);
+            return;
+        }
+        ws.onopen = function(){
+            updateConnectionStatus(true);
+            if (reconnectTimeout) { clearTimeout(reconnectTimeout); reconnectTimeout = null; }
+        };
+        ws.onmessage = function(event){
+            try {
+                const message = JSON.parse(event.data);
+                if (message.type === 'welcome') {
+                    myClientId = message.clientId;
+                } else if (message.type === 'init' || message.type === 'update') {
+                    // Kết nối/đồng bộ lại được với server -> lấy dữ liệu mới nhất từ server,
+                    // ghi đè lên bản đang chỉnh cục bộ.
+                    applyLoadedData(message.data);
+                } else if (message.type === 'lock_status') {
+                    editLock = message.locked ? { clientId: message.clientId, ip: message.ip } : null;
+                    updateLockUI();
+                } else if (message.type === 'lock_denied') {
+                    showLockToast(message.ip);
+                } else if (message.type === 'log_init') {
+                    editLog = message.log || [];
+                    renderLog();
+                } else if (message.type === 'log_entry') {
+                    editLog.unshift(message.entry);
+                    if (editLog.length > 1000) editLog.length = 1000;
+                    renderLog();
+                }
+            } catch (err) { console.error('WS message error:', err); }
+        };
+        ws.onclose = function(){
+            updateConnectionStatus(false);
+            reconnectTimeout = setTimeout(connectWebSocket, 3000);
+        };
+        ws.onerror = function(){ updateConnectionStatus(false); };
+    }
+
+    function loadFromServer(){
+        if (isFileMode) {
+            updateConnectionStatus(false);
+            initField();
+            document.getElementById('log-list').innerHTML =
+                '<div class="log-empty">Ngoại tuyến — không có nhật ký server.</div>';
+            return;
+        }
+        fetch('/api/data')
+            .then(r => {
+                if (r.ok) { updateConnectionStatus(true); return r.json(); }
+                updateConnectionStatus(false);
+                throw new Error('Server not available');
+            })
+            .then(data => { if (data.players) applyLoadedData(data); })
+            .catch(() => { updateConnectionStatus(false); initField(); });
+    }
+
+    function updateFormationTitle(){
+        const playerCount = document.querySelectorAll('.player').length;
+        document.getElementById('formation-title').textContent = 'Sân 7 người · ' + playerCount + ' cầu thủ trên sân';
+    }
+
+    function applyLoadedData(data){
+        const field = document.getElementById('field');
+        field.querySelectorAll('.player').forEach(p => p.remove());
+
+        if (data.playerStats) Object.assign(playerData, data.playerStats);
+
+        if (data.players) {
+            for (const [slot, info] of Object.entries(data.players)) {
+                if (!info || !info.name) continue;
+                const player = createPlayer(info.name, slot, info.position || positionNames[slot]);
+                if (info.customLeft !== undefined && info.customTop !== undefined) {
+                    player.style.left = info.customLeft + '%';
+                    player.style.top = info.customTop + '%';
+                    player.dataset.customLeft = info.customLeft;
+                    player.dataset.customTop = info.customTop;
+                }
+                field.appendChild(player);
+            }
+        }
+
+        const subsList = document.getElementById('substitutes-list');
+        subsList.innerHTML = '';
+        if (data.substitutes && Array.isArray(data.substitutes)) {
+            data.substitutes.forEach(name => subsList.appendChild(createSubstitute(name)));
+        }
+
+        updateBenchCount();
+        updateFormationTitle();
+    }
+
+    function saveToServer(){
+        // Luôn cập nhật xong state cục bộ trước (kéo/thả/đổi chỗ đã áp dụng vào DOM rồi),
+        // việc lưu server chỉ là đồng bộ thêm - không có server thì bỏ qua, không báo lỗi.
+        if (isFileMode) return;
+        const data = {
+            players: getCurrentPlayers(),
+            substitutes: getCurrentSubstitutes(),
+            playerStats: playerData,
+            clientId: myClientId
+        };
+        fetch('/api/data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        }).then(r => {
+            if (r.status === 423) {
+                return r.json().then(body => { showLockToast(body.lockedByIp); loadFromServer(); });
+            }
+            if (r.ok) { updateConnectionStatus(true); updateFormationTitle(); }
+        }).catch(() => updateConnectionStatus(false));
+    }
+
+    function getCurrentPlayers(){
+        const players = {};
+        document.querySelectorAll('.player').forEach(player => {
+            const slot = player.dataset.slot;
+            if (!slot) return;
+            const info = { name: player.dataset.player, position: player.dataset.position };
+            if (player.dataset.customLeft !== undefined) {
+                info.customLeft = parseFloat(player.dataset.customLeft);
+                info.customTop = parseFloat(player.dataset.customTop);
+            }
+            players[slot] = info;
+        });
+        return players;
+    }
+    function getCurrentSubstitutes(){
+        const subs = [];
+        document.querySelectorAll('.substitute-badge').forEach(b => subs.push(b.dataset.player));
+        return subs;
+    }
+    function updateBenchCount(){
+        document.getElementById('bench-count').textContent =
+            '(' + document.querySelectorAll('.substitute-badge').length + ')';
+    }
+
+    function createPlayer(name, slot, pos){
+        const player = document.createElement('div');
+        player.className = 'player';
+        player.dataset.player = name;
+        player.dataset.position = pos;
+        player.dataset.role = labelToRole[pos] || 'free';
+        player.dataset.slot = slot;
+        player.style.touchAction = 'none';
+        if (slotCoords[slot]) {
+            player.style.left = slotCoords[slot].left + '%';
+            player.style.top = slotCoords[slot].top + '%';
+        }
+        player.innerHTML =
+            '<div class="player-stats-preview">' + statBarsHTML(name) + '</div>' +
+            '<div class="player-avatar">' + (positionAbbr[pos] || '?') +
+            '<button type="button" class="player-info" aria-label="Xem chỉ số">ⓘ</button></div>' +
+            '<div class="player-name"></div>';
+        player.querySelector('.player-name').textContent = name;
+
+        const infoBtn = player.querySelector('.player-info');
+        infoBtn.addEventListener('pointerdown', e => e.stopPropagation());
+        infoBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            if (isLockedByOther()) { showLockToast(editLock.ip); return; }
+            clearSelection();
+            openModal(player.dataset.player, player.dataset.position);
+        });
+
+        player.addEventListener('pointerdown', function(e){
+            if (e.button !== 0) return;
+            if (isLockedByOther()) { showLockToast(editLock.ip); e.preventDefault(); return; }
+            requestLock();
+            clearSelection();
+            draggedElement = this;
+            draggedFromSlot = this.dataset.slot;
+            isDragging = true;
+            hasMoved = false;
+            this.setPointerCapture(e.pointerId);
+            mouseDownX = e.clientX; mouseDownY = e.clientY;
+            const r = this.getBoundingClientRect();
+            dragOffsetX = e.clientX - r.left; dragOffsetY = e.clientY - r.top;
+            e.preventDefault();
+        });
+
+        player.addEventListener('pointermove', function(e){
+            if (!isDragging || draggedElement !== this) return;
+            const dx = e.clientX - mouseDownX, dy = e.clientY - mouseDownY;
+            if (Math.sqrt(dx*dx + dy*dy) < MOVE_THRESHOLD) return;
+            hasMoved = true;
+            this.classList.add('dragging');
+            const field = document.getElementById('field');
+            field.classList.add('drag-over');
+            document.getElementById('substitutes-card').classList.add('drag-over');
+            const fr = field.getBoundingClientRect();
+            const leftPercent = ((e.clientX - fr.left - dragOffsetX) / fr.width) * 100;
+            const topPercent = ((e.clientY - fr.top - dragOffsetY) / fr.height) * 100;
+            this.dataset.customLeft = leftPercent.toFixed(2);
+            this.dataset.customTop = topPercent.toFixed(2);
+            this.style.left = leftPercent + '%';
+            applyDynamicRole(this, leftPercent);
+            this.style.top = topPercent + '%';
+
+            const elements = document.elementsFromPoint(e.clientX, e.clientY);
+            const found = elements.find(el => el.classList.contains('player') && el !== this);
+            if (found && found !== swapTargetElement) {
+                if (swapTargetElement) swapTargetElement.classList.remove('swap-target');
+                swapTargetElement = found;
+                swapTargetElement.classList.add('swap-target');
+            } else if (!found && swapTargetElement) {
+                swapTargetElement.classList.remove('swap-target');
+                swapTargetElement = null;
+            }
+        });
+
+        player.addEventListener('pointerup', function(e){
+            if (draggedElement !== this) return;
+            const subsRect = document.getElementById('substitutes-list').getBoundingClientRect();
+            const onBench = e.clientX >= subsRect.left && e.clientX <= subsRect.right &&
+                             e.clientY >= subsRect.top && e.clientY <= subsRect.bottom;
+            this.releasePointerCapture(e.pointerId);
+            this.classList.remove('dragging');
+            document.getElementById('field').classList.remove('drag-over');
+            document.getElementById('substitutes-card').classList.remove('drag-over');
+
+            if (hasMoved && onBench) {
+                const playerName = this.dataset.player;
+                this.remove();
+                document.getElementById('substitutes-list').appendChild(createSubstitute(playerName));
+                updateBenchCount();
+                saveToServer(); releaseLock();
+            } else if (hasMoved && swapTargetElement && swapTargetElement !== this) {
+                handlePlayerSwap(this, swapTargetElement);
+                swapTargetElement.classList.remove('swap-target');
+                swapTargetElement = null;
+                saveToServer(); releaseLock();
+            } else if (hasMoved) {
+                saveToServer(); releaseLock();
+            }
+            if (swapTargetElement) { swapTargetElement.classList.remove('swap-target'); swapTargetElement = null; }
+            isDragging = false;
+            draggedElement = null;
+        });
+
+        player.addEventListener('click', function(e){
+            e.stopPropagation();
+            if (!hasMoved) { handlePlayerClick(this); releaseLock(); }
+            hasMoved = false;
+        });
+
+        return player;
+    }
+
+    function handlePlayerClick(clickedElement){
+        if (selectedElement === clickedElement) { clearSelection(); return; }
+        if (selectedElement) {
+            if (selectedElement.classList.contains('player') && clickedElement.classList.contains('substitute-badge')) {
+                swapFieldPlayerWithSub(selectedElement, clickedElement);
+            } else if (selectedElement.classList.contains('substitute-badge') && clickedElement.classList.contains('player')) {
+                swapFieldPlayerWithSub(clickedElement, selectedElement);
+            } else if (selectedElement.classList.contains('player') && clickedElement.classList.contains('player')) {
+                handlePlayerSwap(selectedElement, clickedElement);
+                saveToServer();
+            }
+            clearSelection();
+        } else {
+            selectedElement = clickedElement;
+            clickedElement.classList.add('swap-target');
+        }
+    }
+
+    function swapFieldPlayerWithSub(fieldPlayer, subBadge){
+        const subName = subBadge.dataset.player;
+        const fieldSlot = fieldPlayer.dataset.slot;
+        const fieldPos = positionNames[fieldSlot] || fieldPlayer.dataset.position;
+        const newFieldPlayer = createPlayer(subName, fieldSlot, fieldPos);
+        const oldFieldName = fieldPlayer.dataset.player;
+        const newSubBadge = createSubstitute(oldFieldName);
+        fieldPlayer.parentNode.replaceChild(newFieldPlayer, fieldPlayer);
+        subBadge.parentNode.replaceChild(newSubBadge, subBadge);
+        newFieldPlayer.classList.add('swap-highlight');
+        newSubBadge.classList.add('swap-highlight');
+        setTimeout(() => { newFieldPlayer.classList.remove('swap-highlight'); newSubBadge.classList.remove('swap-highlight'); }, 350);
+        saveToServer();
+    }
+
+    function clearSelection(){
+        if (selectedElement) { selectedElement.classList.remove('swap-target'); selectedElement = null; }
+    }
+
+    function createSubstitute(name){
+        const badge = document.createElement('span');
+        badge.className = 'substitute-badge';
+        badge.dataset.player = name;
+        badge.style.touchAction = 'none';
+        badge.innerHTML = '<span class="badge-name"></span><button type="button" class="player-info" aria-label="Xem chỉ số">ⓘ</button>';
+        badge.querySelector('.badge-name').textContent = name;
+
+        const infoBtn = badge.querySelector('.player-info');
+        infoBtn.addEventListener('pointerdown', e => e.stopPropagation());
+        infoBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            if (isLockedByOther()) { showLockToast(editLock.ip); return; }
+            clearSelection();
+            openModal(badge.dataset.player);
+        });
+
+        badge.addEventListener('click', function(e){
+            e.stopPropagation();
+            if (!hasMoved) { handleSubClick(this); releaseLock(); }
+            hasMoved = false;
+        });
+
+        badge.addEventListener('pointerdown', function(e){
+            if (e.button !== 0) return;
+            if (isLockedByOther()) { showLockToast(editLock.ip); e.preventDefault(); return; }
+            requestLock();
+            clearSelection();
+            draggedElement = this;
+            draggedFromSlot = 'substitute';
+            isDragging = true;
+            hasMoved = false;
+            this.setPointerCapture(e.pointerId);
+            mouseDownX = e.clientX; mouseDownY = e.clientY;
+            const r = this.getBoundingClientRect();
+            dragOffsetX = e.clientX - r.left; dragOffsetY = e.clientY - r.top;
+            e.preventDefault();
+        });
+
+        badge.addEventListener('pointermove', function(e){
+            if (!isDragging || draggedElement !== this) return;
+            const dx = e.clientX - mouseDownX, dy = e.clientY - mouseDownY;
+            if (Math.sqrt(dx*dx + dy*dy) < MOVE_THRESHOLD) return;
+            hasMoved = true;
+            this.classList.add('dragging');
+            document.getElementById('field').classList.add('drag-over');
+            this.style.position = 'fixed';
+            this.style.left = (e.clientX - dragOffsetX) + 'px';
+            this.style.top = (e.clientY - dragOffsetY) + 'px';
+            this.style.zIndex = '1000';
+        });
+
+        badge.addEventListener('pointerup', function(e){
+            if (draggedElement !== this) return;
+            this.releasePointerCapture(e.pointerId);
+            document.getElementById('field').classList.remove('drag-over');
+            const field = document.getElementById('field');
+            const fr = field.getBoundingClientRect();
+            const onField = e.clientX >= fr.left && e.clientX <= fr.right && e.clientY >= fr.top && e.clientY <= fr.bottom;
+
+            if (hasMoved && onField) {
+                const leftPercent = ((e.clientX - fr.left) / fr.width) * 100;
+                const topPercent = ((e.clientY - fr.top) / fr.height) * 100;
+                const playerName = this.dataset.player;
+                this.remove();
+                const slot = 'extra_' + Date.now();
+                const roleLabel = roleToLabel[roleFromLeftPercent(leftPercent)];
+                const newPlayer = createPlayer(playerName, slot, roleLabel);
+                newPlayer.dataset.customLeft = leftPercent.toFixed(2);
+                newPlayer.dataset.customTop = topPercent.toFixed(2);
+                newPlayer.style.left = leftPercent + '%';
+                newPlayer.style.top = topPercent + '%';
+                field.appendChild(newPlayer);
+                updateBenchCount();
+                saveToServer(); releaseLock();
+            } else if (hasMoved) {
+                this.style.position = ''; this.style.left = ''; this.style.top = ''; this.style.zIndex = '';
+                this.classList.remove('dragging');
+                releaseLock();
+            }
+            isDragging = false;
+            draggedElement = null;
+            draggedFromSlot = null;
+        });
+
+        return badge;
+    }
+
+    function handleSubClick(clickedBadge){
+        if (selectedElement === clickedBadge) { clearSelection(); return; }
+        if (selectedElement && selectedElement.classList.contains('player')) {
+            swapFieldPlayerWithSub(selectedElement, clickedBadge);
+            clearSelection();
+        } else {
+            clearSelection();
+            selectedElement = clickedBadge;
+            clickedBadge.classList.add('swap-target');
+        }
+    }
+
+    function handlePlayerSwap(player1, player2){
+        const name1 = player1.dataset.player, slot1 = player1.dataset.slot;
+        const name2 = player2.dataset.player, slot2 = player2.dataset.slot;
+        // Dùng đúng vai trò ĐANG hiển thị của mỗi ô (đã tính theo vị trí thả nếu từng bị kéo tự do),
+        // vì ô vẫn đứng yên tại chỗ, chỉ đổi tên cầu thủ bên trong.
+        const newPosition1 = player1.dataset.position;
+        const newPosition2 = player2.dataset.position;
+        const customLeft1 = player1.dataset.customLeft, customTop1 = player1.dataset.customTop;
+        const customLeft2 = player2.dataset.customLeft, customTop2 = player2.dataset.customTop;
+
+        applySwappedIdentity(player1, name2, newPosition1, slot1, customLeft1, customTop1);
+        applySwappedIdentity(player2, name1, newPosition2, slot2, customLeft2, customTop2);
+
+        player1.classList.add('swap-highlight');
+        player2.classList.add('swap-highlight');
+        setTimeout(() => { player1.classList.remove('swap-highlight'); player2.classList.remove('swap-highlight'); }, 350);
+    }
+
+    function applySwappedIdentity(el, name, pos, slot, customLeft, customTop){
+        el.dataset.player = name;
+        el.dataset.position = pos;
+        el.dataset.role = labelToRole[pos] || 'free';
+        if (customLeft !== undefined && customLeft !== '') {
+            el.style.left = customLeft + '%'; el.style.top = customTop + '%';
+        } else if (slotCoords[slot]) {
+            el.style.left = slotCoords[slot].left + '%';
+            el.style.top = slotCoords[slot].top + '%';
+        }
+        el.querySelector('.player-name').textContent = name;
+        el.querySelector('.player-avatar').firstChild.textContent = positionAbbr[pos] || '?';
+        const preview = el.querySelector('.player-stats-preview');
+        if (preview) preview.innerHTML = statBarsHTML(name);
+    }
+
+    function openModal(name, posOverride){
+        currentEditingPlayer = name;
+        const data = playerData[name];
+        if (!data) return;
+        const displayPos = posOverride || data.position;
+        document.getElementById('modal-name').textContent = name;
+        document.getElementById('modal-position').textContent = displayPos;
+        document.getElementById('modal-avatar').textContent = positionAbbr[displayPos] || '?';
+        document.getElementById('stat-health').value = data.health;
+        document.getElementById('stat-skill').value = data.skill;
+        document.getElementById('stat-stamina').value = data.stamina;
+        document.getElementById('stat-speed').value = data.speed;
+        document.getElementById('value-health').textContent = data.health;
+        document.getElementById('value-skill').textContent = data.skill;
+        document.getElementById('value-stamina').textContent = data.stamina;
+        document.getElementById('value-speed').textContent = data.speed;
+        document.getElementById('modal-overlay').classList.add('active');
+        requestLock();
+    }
+    function closeModal(){
+        document.getElementById('modal-overlay').classList.remove('active');
+        currentEditingPlayer = null;
+        releaseLock();
+    }
+    function savePlayerStats(){
+        if (!currentEditingPlayer) return;
+        playerData[currentEditingPlayer].health = parseInt(document.getElementById('stat-health').value);
+        playerData[currentEditingPlayer].skill = parseInt(document.getElementById('stat-skill').value);
+        playerData[currentEditingPlayer].stamina = parseInt(document.getElementById('stat-stamina').value);
+        playerData[currentEditingPlayer].speed = parseInt(document.getElementById('stat-speed').value);
+        refreshPlayerStatBars(currentEditingPlayer);
+        saveToServer();
+        closeModal();
+    }
+
+    document.querySelectorAll('.stat-slider').forEach(slider => {
+        slider.addEventListener('input', function(){
+            document.getElementById('value-' + this.id.replace('stat-', '')).textContent = this.value;
+        });
+    });
+    document.getElementById('modal-overlay').addEventListener('click', function(e){
+        if (e.target === this) closeModal();
+    });
+
+    function initField(){
+        const field = document.getElementById('field');
+        field.querySelectorAll('.player').forEach(p => p.remove());
+        for (const [slot, data] of Object.entries(originalPositions)) {
+            field.appendChild(createPlayer(data.name, slot, data.pos));
+        }
+        const subsList = document.getElementById('substitutes-list');
+        subsList.innerHTML = '';
+        originalSubstitutes.forEach(name => subsList.appendChild(createSubstitute(name)));
+        updateBenchCount();
+        updateFormationTitle();
+    }
+
+    document.getElementById('reset-btn').addEventListener('click', function(){
+        if (isLockedByOther()) { showLockToast(editLock.ip); return; }
+        if (!confirm('Đặt lại đội hình về mặc định ban đầu?')) return;
+        requestLock();
+        initField();
+        saveToServer();
+        releaseLock();
+    });
+
+    document.addEventListener('DOMContentLoaded', function(){
+        connectWebSocket();
+        loadFromServer();
+    });
+</script>
+</body>
+</html>
