@@ -322,9 +322,29 @@
     .stat-value{ font-size:1.15em; font-weight:800; text-align:right; margin-top:4px; font-variant-numeric: tabular-nums; }
     .stat-health{ color:#d5453a; } .stat-skill{ color:#2f7fd6; } .stat-stamina{ color:#3f9e64; } .stat-speed{ color:#d98a1c; }
     .modal-actions{ display:flex; gap:10px; justify-content:flex-end; }
+    .modal-actions-right{ display:flex; gap:10px; }
     .btn{ padding:11px 20px; border-radius:10px; font-size:.9em; font-weight:700; cursor:pointer; border:none; }
     .btn-save{ background: var(--ok); color:#fff; }
     .btn-cancel{ background:#e6e1d1; color:#555; }
+    .btn-delete{
+        position:relative; overflow:hidden; background:#fff; color:#c62828; border:2px solid #c62828;
+        touch-action:manipulation; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none;
+    }
+    .btn-delete .delete-progress{
+        position:absolute; left:0; top:0; bottom:0; width:0%; background:#c62828; z-index:0; pointer-events:none;
+    }
+    .btn-delete .delete-label{ position:relative; z-index:1; }
+    .btn-delete.holding .delete-label{ color:#fff; }
+    .modal-name-input{
+        font-size:1.1em; font-weight:800; color:var(--ink); border:1px solid #d8d2bd; border-radius:8px;
+        padding:6px 10px; width:100%; margin-bottom:2px; font-family:inherit;
+    }
+    .add-player-btn{
+        display:block; width:100%; background: var(--ok); color:#fff; border:none;
+        padding:9px 10px; border-radius:10px; font-size:.82em; font-weight:700; cursor:pointer;
+        margin-bottom:10px; touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+    }
+    .add-player-btn:active{ transform:scale(.97); }
 
     /* ===== Phones ===== */
     @media (max-width:420px){
@@ -383,6 +403,7 @@
         <aside class="panel">
             <div class="card" id="substitutes-card">
                 <div class="card-title">🔄 Cầu thủ dự bị <span class="count" id="bench-count"></span></div>
+                <button class="add-player-btn" id="add-player-btn" type="button">➕ Thêm cầu thủ</button>
                 <div class="bench-list" id="substitutes-list"></div>
             </div>
             <div class="card">
@@ -432,6 +453,7 @@
                 <div class="modal-avatar" id="modal-avatar">?</div>
                 <div class="modal-title">
                     <h2 id="modal-name">Tên cầu thủ</h2>
+                    <input type="text" id="modal-name-input" class="modal-name-input" placeholder="Nhập tên cầu thủ mới…" maxlength="40" style="display:none;">
                     <p id="modal-position">Vị trí</p>
                 </div>
                 <button class="modal-close" onclick="closeModal()">×</button>
@@ -459,8 +481,14 @@
                 </div>
             </div>
             <div class="modal-actions">
-                <button class="btn btn-cancel" onclick="closeModal()">Hủy</button>
-                <button class="btn btn-save" onclick="savePlayerStats()">💾 Lưu</button>
+                <button class="btn btn-delete" id="modal-delete-btn" type="button" title="Nhấn giữ 2 giây để xóa">
+                    <span class="delete-progress" id="delete-progress"></span>
+                    <span class="delete-label">🗑️ Xóa</span>
+                </button>
+                <div class="modal-actions-right">
+                    <button class="btn btn-cancel" onclick="closeModal()">Hủy</button>
+                    <button class="btn btn-save" id="modal-save-btn" onclick="savePlayerStats()">💾 Lưu</button>
+                </div>
             </div>
         </div>
     </div>
@@ -578,6 +606,7 @@
     const originalSubstitutes = ['Toàn', 'Chính', 'Hoàng', 'Khánh', 'Sơn', 'Hùng', 'Hiếu', 'Dương', 'Mỹ Linh', 'Khiêm', 'Lộc'];
 
     let currentEditingPlayer = null;
+    let modalMode = 'edit'; // 'edit' (đang xem/sửa cầu thủ có sẵn) | 'add' (đang thêm cầu thủ mới)
     let draggedElement = null;
     let draggedFromSlot = null;
     let selectedElement = null;
@@ -1110,7 +1139,7 @@
         updateFormationTitle();
     }
 
-    function saveToServer(){
+    function saveToServer(actionLabel){
         // Luôn cập nhật xong state cục bộ trước (kéo/thả/đổi chỗ đã áp dụng vào DOM rồi),
         // việc lưu server chỉ là đồng bộ thêm - không có server thì bỏ qua, không báo lỗi.
         if (isFileMode) return;
@@ -1120,6 +1149,7 @@
             playerStats: playerData,
             clientId: myClientId
         };
+        if (actionLabel) data.actionLabel = actionLabel;
         fetch('/api/data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1440,10 +1470,13 @@
     }
 
     function openModal(name, posOverride){
+        modalMode = 'edit';
         currentEditingPlayer = name;
         const data = playerData[name];
         if (!data) return;
         const displayPos = posOverride || data.position;
+        document.getElementById('modal-name').style.display = '';
+        document.getElementById('modal-name-input').style.display = 'none';
         document.getElementById('modal-name').textContent = name;
         document.getElementById('modal-position').textContent = displayPos;
         document.getElementById('modal-avatar').textContent = positionAbbr[displayPos] || '?';
@@ -1455,15 +1488,52 @@
         document.getElementById('value-skill').textContent = data.skill;
         document.getElementById('value-stamina').textContent = data.stamina;
         document.getElementById('value-speed').textContent = data.speed;
+        document.getElementById('modal-save-btn').textContent = '💾 Lưu';
+        updateModalActionsLayout();
         document.getElementById('modal-overlay').classList.add('active');
         requestLock();
+    }
+    // Mở dialog ở chế độ THÊM cầu thủ mới: cho nhập tên, thông số mặc định 70 có thể tùy chỉnh,
+    // lưu xong sẽ được thêm thẳng vào danh sách dự bị.
+    function openAddPlayerModal(){
+        if (isLockedByOther()) { showLockToast(editLock.ip); return; }
+        modalMode = 'add';
+        currentEditingPlayer = null;
+        document.getElementById('modal-name').style.display = 'none';
+        const nameInput = document.getElementById('modal-name-input');
+        nameInput.style.display = '';
+        nameInput.value = '';
+        document.getElementById('modal-position').textContent = 'Dự bị';
+        document.getElementById('modal-avatar').textContent = positionAbbr['Dự bị'] || '?';
+        document.getElementById('stat-health').value = 70;
+        document.getElementById('stat-skill').value = 70;
+        document.getElementById('stat-stamina').value = 70;
+        document.getElementById('stat-speed').value = 70;
+        document.getElementById('value-health').textContent = 70;
+        document.getElementById('value-skill').textContent = 70;
+        document.getElementById('value-stamina').textContent = 70;
+        document.getElementById('value-speed').textContent = 70;
+        document.getElementById('modal-save-btn').textContent = '➕ Thêm';
+        updateModalActionsLayout();
+        document.getElementById('modal-overlay').classList.add('active');
+        requestLock();
+        setTimeout(() => nameInput.focus(), 50);
+    }
+    document.getElementById('add-player-btn').addEventListener('click', openAddPlayerModal);
+    // Nút Xóa chỉ có ý nghĩa ở chế độ sửa (đã có cầu thủ); ẩn đi và canh nút Hủy/Lưu về bên phải khi đang thêm mới
+    function updateModalActionsLayout(){
+        const showDelete = modalMode === 'edit';
+        document.getElementById('modal-delete-btn').style.display = showDelete ? 'flex' : 'none';
+        document.querySelector('#modal-overlay .modal-actions').style.justifyContent = showDelete ? 'space-between' : 'flex-end';
     }
     function closeModal(){
         document.getElementById('modal-overlay').classList.remove('active');
         currentEditingPlayer = null;
+        modalMode = 'edit';
         releaseLock();
     }
     function savePlayerStats(){
+        if (modalMode === 'add') { addNewPlayerFromModal(); return; }
         if (!currentEditingPlayer) return;
         playerData[currentEditingPlayer].health = parseInt(document.getElementById('stat-health').value);
         playerData[currentEditingPlayer].skill = parseInt(document.getElementById('stat-skill').value);
@@ -1473,6 +1543,81 @@
         saveToServer();
         closeModal();
     }
+    // Thêm cầu thủ mới từ dialog, luôn thêm vào danh sách dự bị
+    function addNewPlayerFromModal(){
+        const nameInput = document.getElementById('modal-name-input');
+        const name = nameInput.value.trim();
+        if (!name) { nameInput.focus(); return; }
+        if (playerData[name]) {
+            alert('Đã có cầu thủ tên "' + name + '" rồi. Vui lòng đặt tên khác.');
+            nameInput.focus();
+            return;
+        }
+        const health = parseInt(document.getElementById('stat-health').value) || 0;
+        const skill = parseInt(document.getElementById('stat-skill').value) || 0;
+        const stamina = parseInt(document.getElementById('stat-stamina').value) || 0;
+        const speed = parseInt(document.getElementById('stat-speed').value) || 0;
+        playerData[name] = { health, skill, stamina, speed, position: 'Dự bị' };
+        document.getElementById('substitutes-list').appendChild(createSubstitute(name));
+        updateBenchCount();
+        saveToServer('➕ Đã thêm cầu thủ mới: ' + name);
+        closeModal();
+    }
+    document.getElementById('modal-name-input').addEventListener('keydown', function(e){
+        if (e.key === 'Enter') { e.preventDefault(); savePlayerStats(); }
+    });
+    // Xóa hẳn cầu thủ (dù đang trên sân hay dự bị) khỏi danh sách + khỏi dữ liệu chỉ số
+    function performDeletePlayer(){
+        if (modalMode !== 'edit' || !currentEditingPlayer) return;
+        const name = currentEditingPlayer;
+        clearSelection();
+        document.querySelectorAll('.player, .substitute-badge').forEach(el => {
+            if (el.dataset.player === name) el.remove();
+        });
+        delete playerData[name];
+        updateBenchCount();
+        saveToServer('🗑️ Đã xóa cầu thủ: ' + name);
+        closeModal();
+    }
+    // Nút xóa phải nhấn GIỮ đủ 2 giây mới thực sự xóa, tránh bấm nhầm gây mất dữ liệu
+    (function setupDeleteHoldToConfirm(){
+        const btn = document.getElementById('modal-delete-btn');
+        const progress = document.getElementById('delete-progress');
+        const HOLD_MS = 2000;
+        let holdTimer = null;
+        let rafId = null;
+        let startTime = 0;
+
+        function resetHoldUI(){
+            btn.classList.remove('holding');
+            progress.style.width = '0%';
+        }
+        function tick(){
+            const elapsed = performance.now() - startTime;
+            const pct = Math.min(100, (elapsed / HOLD_MS) * 100);
+            progress.style.width = pct + '%';
+            if (pct < 100) rafId = requestAnimationFrame(tick);
+        }
+        function startHold(e){
+            if (modalMode !== 'edit' || !currentEditingPlayer) return;
+            e.preventDefault();
+            btn.classList.add('holding');
+            startTime = performance.now();
+            rafId = requestAnimationFrame(tick);
+            holdTimer = setTimeout(() => {
+                resetHoldUI();
+                performDeletePlayer();
+            }, HOLD_MS);
+        }
+        function cancelHold(){
+            clearTimeout(holdTimer);
+            cancelAnimationFrame(rafId);
+            holdTimer = null;
+            resetHoldUI();
+        }
+        btn.addEventListener('pointerdown', startHold);
+        ['pointerup', 'pointerleave', 'pointercancel'].forEach(evt => btn.addEventListener(evt, cancelHold));
+    })();
 
     document.querySelectorAll('.stat-slider').forEach(slider => {
         slider.addEventListener('input', function(){
