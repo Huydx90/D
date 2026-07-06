@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Đội hình sân 7</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
     :root{
         --pitch-1:#0f2e1c;
@@ -108,6 +109,22 @@
             var(--pitch-2), var(--pitch-2) 10%,
             var(--pitch-3) 10%, var(--pitch-3) 20%
         );
+    }
+    .field-wrap{ position:relative; }
+    .field-export-btn{
+        position:absolute; top:10px; right:10px; z-index:40;
+        background: rgba(10,20,14,.72); color:#fff; border:1px solid rgba(255,255,255,.35);
+        padding:7px 12px; border-radius:20px; font-size:.75em; font-weight:700; cursor:pointer;
+        opacity:0; transform:translateY(-4px); pointer-events:none;
+        transition: opacity .15s ease, transform .15s ease;
+        touch-action:manipulation; -webkit-tap-highlight-color:transparent;
+    }
+    .field-wrap:hover .field-export-btn{ opacity:1; transform:translateY(0); pointer-events:auto; }
+    .field-export-btn:active{ transform:scale(.95); }
+    .field-export-btn:disabled{ opacity:.6 !important; cursor:default; pointer-events:none; }
+    /* Thiết bị cảm ứng không có hover -> hiện sẵn nút mờ để vẫn bấm được */
+    @media (hover:none){
+        .field-export-btn{ opacity:.85; transform:none; pointer-events:auto; }
     }
     .field.drag-over{ outline: 3px dashed var(--ok); outline-offset: -6px; }
     .field::before{
@@ -415,11 +432,14 @@
                     </div>
                     <button class="reset-btn" id="reset-btn" type="button">↺ Đặt lại đội hình</button>
                 </div>
-                <div class="field" id="field">
-                    <div class="center-circle"></div>
-                    <div class="center-spot"></div>
-                    <div class="goal goal-left"></div>
-                    <div class="goal goal-right"></div>
+                <div class="field-wrap" id="field-wrap">
+                    <div class="field" id="field">
+                        <div class="center-circle"></div>
+                        <div class="center-spot"></div>
+                        <div class="goal goal-left"></div>
+                        <div class="goal goal-right"></div>
+                    </div>
+                    <button class="field-export-btn" id="field-export-btn" type="button" title="Xuất ảnh đội hình (JPG)">📷 Xuất ảnh</button>
                 </div>
                 <div class="legend">
                     <span class="legend-item"><span class="legend-dot gk"></span>Thủ môn</span>
@@ -939,6 +959,47 @@
         }
     }
     document.getElementById('export-btn').addEventListener('click', exportPlayerData);
+
+    // ===== Xuất ảnh đội hình (JPG) khi hover vào sân bấm nút 📷 =====
+    function exportFieldAsImage(){
+        const btn = document.getElementById('field-export-btn');
+        if (typeof html2canvas !== 'function') {
+            alert('Không tải được thư viện xuất ảnh (cần kết nối mạng). Vui lòng thử lại.');
+            return;
+        }
+        const target = document.getElementById('field');
+        const originalLabel = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ Đang xuất…';
+        html2canvas(target, {
+            backgroundColor: '#1f6b3a', // phòng khi có góc bo/viền trong suốt, không để JPG bị nền đen
+            scale: Math.min(3, (window.devicePixelRatio || 1) * 2), // ảnh nét hơn trên màn hình Retina
+            useCORS: true,
+            logging: false
+        }).then(function(canvas){
+            const link = document.createElement('a');
+            const now = new Date();
+            link.download = 'doi-hinh_' + now.getFullYear() + pad2(now.getMonth() + 1) + pad2(now.getDate())
+                + '_' + pad2(now.getHours()) + pad2(now.getMinutes()) + '.jpg';
+            link.href = canvas.toDataURL('image/jpeg', 0.92);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'export_image_log' }));
+            }
+        }).catch(function(err){
+            console.error('Lỗi xuất ảnh đội hình:', err);
+            alert('Có lỗi khi xuất ảnh, vui lòng thử lại.');
+        }).finally(function(){
+            btn.disabled = false;
+            btn.textContent = originalLabel;
+        });
+    }
+    document.getElementById('field-export-btn').addEventListener('click', function(e){
+        e.stopPropagation();
+        exportFieldAsImage();
+    });
 
     // --- Dialog nhập / khôi phục ---
     let importedData = null; // dữ liệu JSON hợp lệ đang chờ người dùng bấm Khôi phục
