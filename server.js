@@ -386,6 +386,11 @@ wss.on('connection', async (ws, req) => {
                 const entry = { time: new Date().toISOString(), ip: ws.ip, action: '📤 Đã xuất dữ liệu cầu thủ ra file JSON' };
                 await appendLog(entry);
                 broadcast(JSON.stringify({ type: 'log_entry', entry }));
+            } else if (data.type === 'export_image_log') {
+                // Ghi nhật ký "ai vừa xuất ảnh đội hình", không có dữ liệu nào bị thay đổi
+                const entry = { time: new Date().toISOString(), ip: ws.ip, action: '🖼️ Đã xuất ảnh đội hình (JPG)' };
+                await appendLog(entry);
+                broadcast(JSON.stringify({ type: 'log_entry', entry }));
             }
         } catch (err) {
             console.error('Error processing message:', err);
