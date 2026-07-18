@@ -1,0 +1,2132 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sơ đồ bố trí máy · AGV Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0f13; --bg-alt:#0d1418; --panel:#121a20; --panel-2:#182129;
+    --border:#22303a; --border-soft:#1a252c; --text:#dbe6ec; --text-dim:#7e94a1; --text-dim2:#546773;
+    --accent:#2dd4c8; --accent-soft:rgba(45,212,200,.12); --accent-dim:#1c7a71;
+    --red:#f0555c; --amber:#f5a623; --green:#3ddc84;
+    --shadow: 0 10px 28px rgba(0,0,0,.45); --radius: 10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:radial-gradient(1200px 500px at 15% -10%, rgba(45,212,200,.06), transparent 60%), var(--bg);
+    color:var(--text); font-family:'Inter',system-ui,sans-serif;
+    display:flex; flex-direction:column; min-height:100vh;
+  }
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  .topbar{
+    display:flex;align-items:center;gap:20px;padding:14px 22px;
+    background:linear-gradient(180deg, var(--panel-2), var(--panel));
+    border-bottom:1px solid var(--border);box-shadow:var(--shadow);z-index:50;flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:center;gap:10px;margin-right:8px;}
+  .brand-mark{
+    width:30px;height:30px;border-radius:7px;
+    background:conic-gradient(from 220deg, var(--accent), var(--accent-dim), var(--accent));
+    box-shadow:0 0 0 1px var(--border-soft), 0 0 16px rgba(45,212,200,.35);position:relative;flex:none;
+  }
+  .brand-mark::after{content:"";position:absolute;inset:8px;background:var(--bg);border-radius:3px;}
+  .brand-text{display:flex;flex-direction:column;line-height:1.1;}
+  .brand-text b{font-family:'Chakra Petch',sans-serif;font-size:15px;letter-spacing:.04em;}
+  .brand-text span{font-size:11px;color:var(--text-dim);letter-spacing:.06em;text-transform:uppercase;}
+
+  nav.tabs{display:flex;gap:6px;background:var(--bg-alt);border:1px solid var(--border);border-radius:9px;padding:3px;}
+  nav.tabs a{text-decoration:none;color:var(--text-dim);font-size:13px;font-weight:600;padding:8px 14px;border-radius:7px;transition:.15s;letter-spacing:.02em;}
+  nav.tabs a:hover{color:var(--text);}
+  nav.tabs a.active{background:var(--accent-soft);color:var(--accent);box-shadow:inset 0 0 0 1px rgba(45,212,200,.3);}
+
+  .spacer{flex:1;}
+  .stat-pill{display:flex;align-items:center;gap:8px;background:var(--bg-alt);border:1px solid var(--border);padding:7px 13px;border-radius:8px;font-size:12px;color:var(--text-dim);}
+  .stat-pill b{color:var(--text);font-family:'JetBrains Mono',monospace;}
+  .dot-live{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse-dot 1.8s infinite;}
+  .dot-live.off{background:var(--red);box-shadow:0 0 8px var(--red);animation:none;}
+  .dot-live.connecting{background:var(--amber);box-shadow:0 0 8px var(--amber);}
+  .dot-live.memory{background:var(--amber);box-shadow:0 0 8px var(--amber);}
+  @keyframes pulse-dot{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+  /* banner chế độ demo / offline */
+  .mode-banner{
+    display:none;align-items:center;gap:10px;padding:9px 22px;font-size:12.5px;
+    border-bottom:1px solid var(--border);line-height:1.4;
+  }
+  .mode-banner.show{display:flex;}
+  .mode-banner svg{width:16px;height:16px;flex:none;}
+  .mode-banner.offline{background:rgba(240,85,92,.08);color:#ff9a9e;border-color:rgba(240,85,92,.3);}
+  .mode-banner.offline svg{color:var(--red);}
+  .mode-banner.memory{background:rgba(245,166,35,.08);color:#ffd699;border-color:rgba(245,166,35,.3);}
+  .mode-banner.memory svg{color:var(--amber);}
+  .mode-banner b{color:inherit;}
+
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;background:var(--panel-2);color:var(--text);
+    border:1px solid var(--border);border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;
+    cursor:pointer;font-family:'Inter',sans-serif;transition:.15s;
+  }
+  .btn:hover{border-color:var(--accent-dim);color:var(--accent);}
+  .btn.primary{background:var(--accent-soft);border-color:rgba(45,212,200,.4);color:var(--accent);}
+  .btn.primary:hover{background:rgba(45,212,200,.2);}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn svg{width:15px;height:15px;flex:none;}
+
+  .stage{flex:1;display:flex;gap:18px;padding:18px 22px 22px;min-height:0;}
+
+  .buffer-panel{
+    width:100%;flex:1;min-height:0;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+    display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow);
+    transition:box-shadow .15s;
+  }
+  .buffer-panel.drag-over{box-shadow: inset 0 0 0 2px var(--accent), var(--shadow);}
+  .panel-head{padding:14px 16px;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;justify-content:space-between;background:var(--panel-2);}
+  .panel-head h2{margin:0;font-family:'Chakra Petch',sans-serif;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--text);}
+  .panel-head .count{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--accent);background:var(--accent-soft);border:1px solid rgba(45,212,200,.3);padding:2px 8px;border-radius:20px;}
+  .panel-hint{padding:9px 16px;font-size:11px;color:var(--text-dim2);border-bottom:1px solid var(--border-soft);line-height:1.5;}
+  .panel-search{padding:10px 14px;border-bottom:1px solid var(--border-soft);position:relative;}
+  .panel-search svg{position:absolute;left:24px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--text-dim2);pointer-events:none;}
+  .panel-search input{
+    width:100%;background:var(--bg-alt);border:1px solid var(--border);border-radius:7px;
+    padding:7px 10px 7px 30px;font-size:12px;color:var(--text);font-family:inherit;
+  }
+  .panel-search input:focus{outline:none;border-color:var(--accent);}
+  .panel-search input::placeholder{color:var(--text-dim2);}
+  .buffer-list{flex:1;min-height:0;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:6px;touch-action:pan-y;overscroll-behavior:contain;}
+  .buffer-empty{margin:auto;text-align:center;color:var(--text-dim2);font-size:12px;padding:20px;line-height:1.6;}
+
+  /* Group Zone (cấp ngoài) và Line (cấp trong) - có thể collapse độc lập */
+  .zone-group{border:1px solid var(--border-soft);border-radius:8px;overflow:hidden;background:var(--panel-2);}
+  .zone-header, .line-header{
+    display:flex;align-items:center;gap:7px;padding:8px 10px;cursor:pointer;user-select:none;
+    background:var(--bg-alt);transition:background .12s;
+  }
+  .zone-header:hover, .line-header:hover{background:var(--accent-soft);}
+  .zone-header .chevron, .line-header .chevron{
+    width:12px;height:12px;flex:none;color:var(--text-dim2);transition:transform .15s;
+  }
+  .zone-group.collapsed > .zone-header .chevron,
+  .line-group.collapsed > .line-header .chevron{transform:rotate(-90deg);}
+  .zone-header .group-name{font-family:'Chakra Petch',sans-serif;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--text);flex:1;}
+  .line-header .group-name{font-size:11.5px;color:var(--text-dim);flex:1;}
+  .zone-header .group-count, .line-header .group-count{
+    font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim2);
+    background:var(--panel);border:1px solid var(--border-soft);padding:1px 7px;border-radius:20px;
+  }
+  .zone-header .critical-dot, .line-header .critical-dot{
+    width:6px;height:6px;border-radius:50%;background:var(--red);box-shadow:0 0 6px var(--red);flex:none;
+  }
+  .zone-body{padding:6px;display:flex;flex-direction:column;gap:6px;}
+  .zone-group.collapsed .zone-body{display:none;}
+  .line-group{border:1px solid var(--border-soft);border-radius:7px;overflow:hidden;}
+  .line-body{padding:6px;display:flex;flex-direction:column;gap:6px;background:var(--panel);}
+  .line-group.collapsed .line-body{display:none;}
+  mark{background:rgba(45,212,200,.35);color:var(--text);border-radius:2px;padding:0 1px;}
+
+  .buffer-chip{
+    background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;
+    cursor:grab;user-select:none;touch-action:pan-y;position:relative;transition:border-color .15s;
+  }
+  .buffer-chip.drag-armed{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
+  .buffer-chip .chip-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:6px;}
+  .buffer-chip:hover{border-color:var(--accent-dim);}
+  .buffer-chip:active{cursor:grabbing;}
+  .buffer-chip.dragging{opacity:.95;box-shadow:0 14px 30px rgba(0,0,0,.55);border-color:var(--accent);pointer-events:none;z-index:1000;}
+
+  .buffer-chip.locked{opacity:.45;cursor:not-allowed;pointer-events:none;}
+  .chip-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+  .chip-name{font-weight:600;font-size:13px;}
+  .chip-line{font-size:10px;color:var(--accent);background:var(--accent-soft);padding:2px 7px;border-radius:20px;letter-spacing:.03em;}
+  .chip-ip{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);}
+  .chip-version{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim2);margin-top:1px;}
+  .chip-levels{display:flex;gap:6px;margin-top:7px;}
+
+  .lvl-chip{display:flex;align-items:center;gap:4px;font-size:10px;font-weight:600;padding:2px 6px;border-radius:5px;letter-spacing:.02em;font-family:'JetBrains Mono',monospace;}
+  .lvl-chip .lvl-led{width:6px;height:6px;border-radius:50%;}
+  .lvl-red{background:rgba(240,85,92,.12);color:var(--red);} .lvl-red .lvl-led{background:var(--red);box-shadow:0 0 5px var(--red);}
+  .lvl-amber{background:rgba(245,166,35,.12);color:var(--amber);} .lvl-amber .lvl-led{background:var(--amber);box-shadow:0 0 5px var(--amber);}
+  .lvl-green{background:rgba(61,220,132,.12);color:var(--green);} .lvl-green .lvl-led{background:var(--green);box-shadow:0 0 5px var(--green);}
+
+  .layout-wrap{flex:1;display:flex;flex-direction:column;min-width:0;}
+  .lock-pill{display:none;align-items:center;gap:7px;background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.4);color:var(--amber);padding:6px 12px;border-radius:8px;font-size:11.5px;}
+  .lock-pill.show{display:flex;}
+  .lock-pill .led{width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 6px var(--amber);}
+  
+  /* Edit/View Switch */
+  .mode-switch{display:flex;align-items:center;gap:8px;background:var(--bg-alt);border:1px solid var(--border);padding:5px;border-radius:20px;}
+  .mode-switch label{font-size:11px;font-weight:600;color:var(--text-dim);cursor:pointer;padding:5px 10px;border-radius:15px;transition:.2s;}
+  .mode-switch label.active{background:var(--accent);color:#fff;}
+  .mode-switch input[type="radio"]{display:none;}
+  .mode-switch.disabled{opacity:.4;pointer-events:none;}
+  .mode-switch.disabled label{cursor:not-allowed;}
+  
+  /* Buffer panel visibility based on edit mode */
+  body.view-mode .buffer-panel{display:none;}
+  body.view-mode .layout-canvas{border-radius:var(--radius);}
+  body.view-mode .canvas-empty{pointer-events:none;opacity:.5;}
+  body:not(.view-mode) .machine-pin{cursor:grab;}
+  body:not(.view-mode) .buffer-chip{cursor:grab;}
+  body.view-mode .machine-pin{cursor:default;}
+  body.view-mode .buffer-chip{cursor:default;opacity:.7;}
+
+  .layout-canvas{
+    position:relative;flex:1;min-height:420px;background-color:var(--bg-alt);
+    border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);
+    touch-action:none;container-type:inline-size;cursor:default;
+  }
+  .layout-canvas.panning{cursor:grabbing;}
+
+  /* Lớp pan/zoom: CHỈ chứa ảnh nền, nhận transform translate+scale.
+     Pin không còn nằm trong layout-world (xem .pin-layer) để tránh bị mờ khi
+     zoom - toạ độ % (m.x/m.y) vẫn được lưu theo hệ world lúc zoom=1, nhưng
+     việc quy đổi sang vị trí pixel thực tế trên màn hình do pinScreenPos() lo. */
+  .layout-world{
+    position:absolute;inset:0;transform-origin:0 0;will-change:transform;
+    background-color:var(--bg-alt);
+    background-image:linear-gradient(rgba(45,212,200,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(45,212,200,.06) 1px, transparent 1px);
+    background-size:100% 100%;background-position:center;background-repeat:no-repeat;
+  }
+  .layout-world.blueprint-mode{
+    background-size:32px 32px;
+  }
+
+  /* Lớp riêng chứa pin, KHÔNG bị transform:scale() của layout-world.
+     Đây là lý do pin luôn nét dù zoom bao nhiêu (giống marker Google Maps):
+     layout-world chỉ chứa ảnh nền, được raster rồi phóng to bằng GPU khi zoom
+     (nên ảnh có mờ nhẹ là bình thường). Nếu pin nằm trong world, dù có
+     scale ngược lại bằng --pin-scale thì nội dung pin vẫn bị "nướng" chung
+     vào bitmap của world rồi bị phóng to theo => mờ dần khi zoom tăng.
+     Đặt pin ở lớp riêng, không transform, chỉ dịch chuyển bằng left/top (px)
+     tính lại mỗi khi pan/zoom đổi => pin luôn render ở đúng 1x, nét tuyệt đối. */
+  .pin-layer{
+    position:absolute;inset:0;pointer-events:none;z-index:6;
+  }
+
+  .zoom-controls{display:flex;align-items:center;gap:2px;background:var(--bg-alt);border:1px solid var(--border);border-radius:8px;padding:3px;}
+  .icon-btn{
+    width:26px;height:26px;border-radius:6px;border:none;background:transparent;color:var(--text-dim);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;font-weight:700;transition:.15s;line-height:1;flex:none;
+  }
+  .icon-btn svg{width:14px;height:14px;}
+  .icon-btn:hover{background:var(--accent-soft);color:var(--accent);}
+  .icon-btn:disabled{opacity:.35;cursor:not-allowed;background:none;color:var(--text-dim);}
+  .zoom-controls .zoom-level{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);min-width:40px;text-align:center;}
+  .zoom-controls .icon-btn svg{width:14px;height:14px;}
+
+  .minimap{
+    display:none;position:absolute;right:12px;bottom:12px;width:160px;height:110px;z-index:20;
+    border:1px solid var(--border);border-radius:8px;overflow:hidden;box-shadow:var(--shadow);
+    background-color:rgba(10,15,19,.92);background-position:center;background-repeat:no-repeat;background-size:contain;
+  }
+  .minimap.show{display:block;}
+  .minimap.blueprint-mode{
+    background-image:linear-gradient(rgba(45,212,200,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(45,212,200,.08) 1px, transparent 1px);
+    background-size:16px 16px;
+  }
+  .minimap-viewport{
+    position:absolute;border:1.5px solid var(--accent);background:rgba(45,212,200,.15);
+    box-shadow:0 0 0 1px rgba(0,0,0,.45);pointer-events:none;
+  }
+
+  .layout-canvas.drag-over{box-shadow:inset 0 0 0 2px var(--accent), var(--shadow);}
+  .layout-canvas.file-drag{box-shadow:inset 0 0 0 2px var(--amber), var(--shadow);}
+  .layout-canvas.locked-by-other{box-shadow:inset 0 0 0 2px var(--red), var(--shadow);}
+
+  .canvas-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text-dim2);cursor:pointer;text-align:center;padding:20px;}
+  .canvas-empty svg{width:34px;height:34px;color:var(--text-dim2);}
+  .canvas-empty b{color:var(--text-dim);font-size:13px;font-weight:600;}
+  .canvas-empty span{font-size:11.5px;max-width:280px;line-height:1.5;}
+
+  .machine-pin{position:absolute;display:flex;flex-direction:column;align-items:center;cursor:grab;user-select:none;touch-action:none;z-index:5;pointer-events:auto;}
+  .machine-pin:active{cursor:grabbing;}
+  .machine-pin.dragging{z-index:100;}
+  .machine-pin.locked{cursor:not-allowed;}
+  /* Lớp ngoài lo định vị (translate), lớp trong lo scale kích thước */
+  .pin-anchor{transform:translate(-50%,-50%);}
+  /* transform-origin: center (không phải "center top") - để việc scale không bao giờ
+     làm lệch tâm hiển thị khỏi điểm neo (-50%,-50% của anchor), bất kể currentContainerScale
+     là bao nhiêu. Trước đây dùng "center top" khiến tâm hiển thị dịch xuống/lên một khoảng
+     H/2*(scale-1) so với điểm đã lưu toạ độ, gây hiện tượng icon "trượt" sau khi thả tay,
+     ngay cả khi không zoom (vì scale ở đây là currentContainerScale theo bề rộng canvas,
+     không phải zoomLevel). */
+  /* Kích thước icon = --pin-scale (responsive theo bề rộng canvas) nhân với
+     --pin-size-mult (do người dùng tự kéo giãn riêng cho từng máy, lưu ở machine.size). */
+  .pin-scale{transform:scale(calc(var(--pin-scale,1) * var(--pin-size-mult,1)));transform-origin:center;display:flex;flex-direction:column;align-items:center;}
+  
+  /* Oval container - hiển thị mặc định, nằm ngoài card */
+  .pin-oval{
+    display:inline-flex;align-items:center;justify-content:center;
+    background:rgba(34,48,58,.85);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:4px 10px;
+    min-width:50px;
+    transition:.2s;
+    order:-1; /* Luôn hiển thị trên card */
+    position:relative;
+  }
+  .pin-oval .oval-dot{width:9px;height:9px;border-radius:50%;transition:.2s;flex-shrink:0;}
+  
+  /* Edit mode: chỉ hiển thị tên, ẩn 2 chấm */
+  body:not(.view-mode) .pin-oval .oval-dot{display:none;}
+  .pin-oval-info{
+    display:none;flex-direction:column;align-items:center;gap:0;
+    font-size:11px;font-family:'Chakra Petch',sans-serif;
+    font-weight:700;color:var(--text);white-space:nowrap;
+  }
+  body:not(.view-mode) .pin-oval-info{display:flex;}
+  
+  /* Pin card - popup, chỉ hiện khi click (show-card) */
+  .pin-card{
+    position:absolute;top:100%;left:50%;
+    background:rgba(18,26,32,.98);backdrop-filter:blur(8px);
+    border:1px solid var(--border);border-radius:8px;padding:8px 12px;min-width:110px;
+    text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.6);
+    opacity:0;visibility:hidden;transition:.2s ease;
+    pointer-events:none;z-index:100;white-space:nowrap;
+    transform:translateX(-50%);
+  }
+  .pin-card::after{
+    content:"";position:absolute;bottom:100%;left:50%;transform:translateX(-50%);
+    border-left:6px solid transparent;border-right:6px solid transparent;
+    border-bottom:6px solid rgba(18,26,32,.98);
+  }
+  .machine-pin.show-card .pin-card{
+    opacity:1;visibility:visible;pointer-events:auto;
+  }
+  .machine-pin.dragging .pin-card{display:none !important;}
+  .pin-name{font-size:14px;font-weight:700;font-family:'Chakra Petch',sans-serif;letter-spacing:.03em;color:var(--text);}
+  .pin-ip{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);margin-top:2px;}
+  .pin-version{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--text-dim2);margin-top:1px;}
+  .pin-time-ago{font-size:9px;color:var(--text-dim2);font-family:'JetBrains Mono',monospace;margin-top:4px;}
+  .pin-time-ago.fresh{color:var(--green);}
+  .pin-time-ago.warn{color:var(--amber);}
+  .pin-time-ago.stale{color:#6a7f8a;}
+  /* Machine status colors for oval background */
+  .pin-oval.status-fresh{background:rgba(61,220,132,.18);border-color:rgba(61,220,132,.45);}
+  .pin-oval.status-warn{background:rgba(245,166,35,.18);border-color:rgba(245,166,35,.45);}
+  .pin-oval.status-stale{background:rgba(52,68,82,.6);border-color:#3a4a5a;}
+  /* Dot colors based on level - với glow effect */
+  .oval-dot.lvl-1{background:var(--red);box-shadow:0 0 8px var(--red), 0 0 12px rgba(240,85,92,.5);}
+  .oval-dot.lvl-2{background:var(--amber);box-shadow:0 0 8px var(--amber), 0 0 12px rgba(245,166,35,.5);}
+  .oval-dot.lvl-3{background:var(--green);box-shadow:0 0 8px var(--green), 0 0 12px rgba(61,220,132,.5);}
+  /* Stale state - dots xám riêng biệt, dễ nhìn hơn */
+  .pin-oval.status-stale .oval-dot.lvl-1,
+  .pin-oval.status-stale .oval-dot.lvl-2,
+  .pin-oval.status-stale .oval-dot.lvl-3{
+    background:#5a6e7a;
+    box-shadow:0 0 4px #5a6e7a, inset 0 0 6px rgba(255,255,255,.1);
+  }
+
+  /* Tay cầm co giãn kích thước icon - chỉ hiện trong chế độ Edit, ở góc dưới-phải oval */
+  .pin-resize-handle{
+    display:none;position:absolute;right:-7px;bottom:-7px;width:13px;height:13px;
+    background:var(--accent);border:2px solid var(--bg);border-radius:4px;
+    cursor:nwse-resize;z-index:10;box-shadow:0 1px 4px rgba(0,0,0,.5);touch-action:none;
+  }
+  body:not(.view-mode) .pin-resize-handle{display:block;}
+  .machine-pin.dragging .pin-resize-handle{display:none !important;}
+
+  .toast{
+    position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:11px 18px;border-radius:9px;
+    font-size:13px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.25s;z-index:200;display:flex;align-items:center;gap:8px;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast.warn{border-color:rgba(245,166,35,.5);}
+  .toast .led{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent);}
+  .toast.warn .led{background:var(--amber);box-shadow:0 0 6px var(--amber);}
+
+  /* ================================================================
+     SIDEBAR TRÁI: dùng chung 1 không gian cho Dashboard (View mode) và
+     Buffer Panel - máy chưa bố trí (Edit mode). Hoán đổi theo body.view-mode.
+     ================================================================ */
+  .sidebar-left{width:300px;flex:none;display:flex;flex-direction:column;min-height:0;}
+  @media (min-width:1600px){ .sidebar-left{width:19%;min-width:260px;} }
+  @media (max-width:1599px) and (min-width:821px){ .sidebar-left{width:25%;min-width:270px;} }
+
+  body.view-mode .dashboard-bar{display:flex;}
+  body:not(.view-mode) .dashboard-bar{display:none;}
+  /* buffer-panel ẩn/hiện ngược lại đã có sẵn ở rule phía trên */
+
+  /* Dashboard thống kê - dạng cột dọc, lấp đầy sidebar-left */
+  .dashboard-bar{
+    flex:1;min-height:0;flex-direction:column;gap:12px;overflow-y:auto;
+    background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+    padding:14px;box-shadow:var(--shadow);
+  }
+  .dash-card{
+    background:var(--panel-2);border:1px solid var(--border-soft);
+    border-radius:9px;padding:13px 14px;display:flex;flex-direction:column;gap:10px;
+  }
+  .dash-card-head{display:flex;align-items:center;gap:8px;}
+  .dash-card-head .dash-icon{
+    width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+    font-size:14px;flex:none;
+  }
+  .dash-card-head .dash-icon.solder{background:rgba(245,166,35,.15);color:var(--amber);}
+  .dash-card-head .dash-icon.wiper{background:rgba(240,85,92,.15);color:var(--red);}
+  .dash-card-head .dash-icon.machine{background:rgba(45,212,200,.15);color:var(--accent);}
+  .dash-card-head h3{
+    margin:0;font-family:'Chakra Petch',sans-serif;font-size:13px;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--text);
+  }
+  .dash-card-head .dash-total{
+    margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:700;color:var(--text);
+  }
+  .dash-card-head .dash-total-label{font-size:9.5px;color:var(--text-dim2);text-transform:uppercase;letter-spacing:.05em;}
+
+  .dash-body{display:flex;align-items:center;gap:12px;}
+  .dash-donut-wrap{position:relative;width:64px;height:64px;flex:none;}
+  .dash-donut{width:64px;height:64px;border-radius:50%;background:conic-gradient(var(--border-soft) 0 100%);}
+  .dash-donut-hole{
+    position:absolute;inset:9px;border-radius:50%;background:var(--panel-2);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);text-align:center;line-height:1.2;
+  }
+  .dash-stats{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0;}
+  .dash-stat{
+    display:flex;align-items:center;justify-content:space-between;gap:6px;
+    background:var(--bg-alt);border:1px solid var(--border-soft);border-radius:6px;padding:4px 8px;
+  }
+  .dash-stat .stat-label{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:5px;}
+  .dash-stat .stat-val{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;}
+  .dash-stat .stat-led{width:7px;height:7px;border-radius:50%;flex:none;}
+  .dash-stat.full .stat-led{background:var(--green);box-shadow:0 0 6px var(--green);}
+  .dash-stat.full .stat-val{color:var(--green);}
+  .dash-stat.mid .stat-led{background:var(--amber);box-shadow:0 0 6px var(--amber);}
+  .dash-stat.mid .stat-val{color:var(--amber);}
+  .dash-stat.low .stat-led{background:var(--red);box-shadow:0 0 6px var(--red);}
+  .dash-stat.low .stat-val{color:var(--red);}
+  .dash-stat.online .stat-led{background:var(--green);box-shadow:0 0 6px var(--green);}
+  .dash-stat.online .stat-val{color:var(--green);}
+  .dash-stat.warn .stat-led{background:var(--amber);box-shadow:0 0 6px var(--amber);}
+  .dash-stat.warn .stat-val{color:var(--amber);}
+  .dash-stat.offline .stat-led{background:var(--red);box-shadow:0 0 6px var(--red);}
+  .dash-stat.offline .stat-val{color:var(--red);}
+  .dash-card-sub{font-size:10px;color:var(--text-dim2);line-height:1.4;margin-top:-2px;}
+
+  /* Float top-left trong canvas: tên sơ đồ + tỉ lệ máy đã bố trí - luôn hiện, cả Edit lẫn View */
+  .canvas-info-float{
+    position:absolute;top:12px;left:12px;z-index:25;
+    display:flex;align-items:center;gap:10px;
+    background:rgba(13,20,24,.78);backdrop-filter:blur(6px);
+    border:1px solid var(--border);border-radius:9px;padding:8px 12px;box-shadow:var(--shadow);
+  }
+  .canvas-info-float .title{font-family:'Chakra Petch',sans-serif;font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-dim);white-space:nowrap;}
+  .canvas-info-float .stat-pill{background:none;border:none;padding:0;}
+
+  /* Float top-right trong canvas: zoom, lưới căn chỉnh, import/xoá ảnh - luôn nền mờ blur,
+     nhưng Import/Xoá chỉ show khi Edit mode + đã có ảnh (điều khiển qua JS) */
+  .canvas-float-tools{
+    position:absolute;top:12px;right:12px;z-index:25;
+    display:flex;align-items:center;gap:4px;
+    background:rgba(13,20,24,.78);backdrop-filter:blur(6px);
+    border:1px solid var(--border);border-radius:9px;padding:4px;box-shadow:var(--shadow);
+  }
+  .canvas-float-tools .zoom-controls{background:none;border:none;padding:0;}
+  .float-divider{width:1px;align-self:stretch;background:var(--border);margin:2px 1px;}
+  #btnImportLayout, #btnClearLayout, #importDivider{display:none;}
+  .canvas-float-tools.show-import #btnImportLayout,
+  .canvas-float-tools.show-import #btnClearLayout,
+  .canvas-float-tools.show-import #importDivider{display:flex;}
+  .icon-btn.danger:hover{background:rgba(240,85,92,.15);color:var(--red);}
+
+  /* Adaptive theo zoom (dải thực tế 100-500%, ZOOM_MIN=1 không đổi):
+     100-150% tối giản | 150-300% đầy đủ (mặc định) | >300% tự bung pin-card */
+  .zoom-minimal .machine-pin .oval-dot{display:none;}
+  .zoom-minimal .machine-pin .pin-oval{padding:3px 7px;min-width:0;gap:5px;}
+  .zoom-minimal .machine-pin .pin-oval-info{font-size:9px;}
+  .zoom-detail .machine-pin .pin-card{opacity:1 !important;visibility:visible !important;pointer-events:auto !important;}
+
+  /* Vòng hào quang nhấp nháy cho pin ở mức Thấp (khẩn cấp) */
+  @keyframes ring-pulse-red{
+    0%,100%{box-shadow:0 0 0 0 rgba(240,85,92,.55), 0 0 0 1px rgba(240,85,92,.45) inset;}
+    50%{box-shadow:0 0 0 6px rgba(240,85,92,0), 0 0 0 1px rgba(240,85,92,.45) inset;}
+  }
+  .pin-oval.critical{animation:ring-pulse-red 1.6s ease-in-out infinite;}
+
+  /* Minimap: cho phép kéo/click để pan nhanh */
+  .minimap{cursor:pointer;}
+  .minimap-viewport{cursor:grab;pointer-events:auto;}
+  .minimap-viewport:active{cursor:grabbing;}
+
+  /* Lưới căn chỉnh thủ công - chồng lên ảnh nền thật, khác blueprint-mode (chỉ hiện khi CHƯA có ảnh) */
+  .layout-world.grid-align-on{
+    background-image:linear-gradient(rgba(45,212,200,.14) 1px, transparent 1px), linear-gradient(90deg, rgba(45,212,200,.14) 1px, transparent 1px) !important;
+    background-size:32px 32px !important;
+  }
+  .icon-btn.active{background:var(--accent-soft);color:var(--accent);}
+
+  @media (max-width:820px){
+    .stage{flex-direction:column;}
+    .sidebar-left{width:100%;max-height:260px;}
+    .buffer-panel{width:100%;max-height:260px;}
+    .dashboard-bar{max-height:260px;}
+    .layout-canvas{min-height:340px;}
+  }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div class="brand-text"><b>AGV MONITOR</b><span>Wiper / Solder Level</span></div>
+    </div>
+
+    <nav class="tabs">
+      <a href="layout.html" class="active">Sơ đồ bố trí</a>
+      <a href="card-list.html">Danh sách chi tiết</a>
+      <a href="settings.html">Cài đặt máy</a>
+      <a href="api-docs.html" target="_blank">API Docs</a>
+      <a href="logs.html">Logs</a>
+    </nav>
+
+    <div class="spacer"></div>
+
+    <div class="lock-pill" id="lockPill"><span class="led"></span><span id="lockPillText"></span></div>
+    <div class="stat-pill"><span class="dot-live connecting" id="connDot"></span> <span id="connText">Đang kết nối...</span></div>
+    
+    <!-- Edit/View Mode Switch -->
+    <div class="mode-switch" id="modeSwitch">
+      <input type="radio" id="modeEdit" name="mode" value="edit" checked>
+      <label for="modeEdit" id="labelEdit">Edit</label>
+      <input type="radio" id="modeView" name="mode" value="view">
+      <label for="modeView" id="labelView">View</label>
+    </div>
+  </div>
+
+  <div class="mode-banner" id="modeBanner"></div>
+
+  <div class="stage">
+    <aside class="sidebar-left" id="sidebarLeft">
+      <!-- Dashboard thống kê - chỉ hiện ở View mode -->
+      <div class="dashboard-bar" id="dashboardBar">
+        <div class="dash-card">
+          <div class="dash-card-head">
+            <div class="dash-icon solder">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>
+            </div>
+            <h3>Cảm biến Solder</h3>
+            <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;">
+              <span class="dash-total-label">Trên N máy</span>
+              <span class="dash-total" id="solderTotal">0</span>
+            </div>
+          </div>
+          <div class="dash-body">
+            <div class="dash-donut-wrap">
+              <div class="dash-donut" id="solderDonut"></div>
+              <div class="dash-donut-hole" id="solderDonutLabel">0%<br>Đầy</div>
+            </div>
+            <div class="dash-stats">
+              <div class="dash-stat full">
+                <span class="stat-label"><span class="stat-led"></span>Đầy</span>
+                <span class="stat-val" id="solderFull">0</span>
+              </div>
+              <div class="dash-stat mid">
+                <span class="stat-label"><span class="stat-led"></span>Trung bình</span>
+                <span class="stat-val" id="solderMid">0</span>
+              </div>
+              <div class="dash-stat low">
+                <span class="stat-label"><span class="stat-led"></span>Thấp</span>
+                <span class="stat-val" id="solderLow">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dash-card">
+          <div class="dash-card-head">
+            <div class="dash-icon wiper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 12h3l3-9 6 18 3-9h3"/></svg>
+            </div>
+            <h3>Cảm biến Wiper</h3>
+            <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;">
+              <span class="dash-total-label">Trên N máy</span>
+              <span class="dash-total" id="wiperTotal">0</span>
+            </div>
+          </div>
+          <div class="dash-body">
+            <div class="dash-donut-wrap">
+              <div class="dash-donut" id="wiperDonut"></div>
+              <div class="dash-donut-hole" id="wiperDonutLabel">0%<br>Đầy</div>
+            </div>
+            <div class="dash-stats">
+              <div class="dash-stat full">
+                <span class="stat-label"><span class="stat-led"></span>Đầy</span>
+                <span class="stat-val" id="wiperFull">0</span>
+              </div>
+              <div class="dash-stat mid">
+                <span class="stat-label"><span class="stat-led"></span>Trung bình</span>
+                <span class="stat-val" id="wiperMid">0</span>
+              </div>
+              <div class="dash-stat low">
+                <span class="stat-label"><span class="stat-led"></span>Thấp</span>
+                <span class="stat-val" id="wiperLow">0</span>
+              </div>
+            </div>
+          </div>
+          <div class="dash-card-sub">Wiper &amp; Solder là 2 cảm biến trên cùng 1 máy, không phải 2 nhóm máy khác nhau.</div>
+        </div>
+
+        <div class="dash-card">
+          <div class="dash-card-head">
+            <div class="dash-icon machine">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4 4h16v10H4zM8 20h8M10 14v6M14 14v6"/></svg>
+            </div>
+            <h3>Trạng thái máy</h3>
+            <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;">
+              <span class="dash-total-label">Tổng máy</span>
+              <span class="dash-total" id="machineTotal">0</span>
+            </div>
+          </div>
+          <div class="dash-body">
+            <div class="dash-donut-wrap">
+              <div class="dash-donut" id="statusDonut"></div>
+              <div class="dash-donut-hole" id="statusDonutLabel">0%<br>Online</div>
+            </div>
+            <div class="dash-stats">
+              <div class="dash-stat online">
+                <span class="stat-label"><span class="stat-led"></span>Online</span>
+                <span class="stat-val" id="machineOnline">0</span>
+              </div>
+              <div class="dash-stat warn">
+                <span class="stat-label"><span class="stat-led"></span>Cảnh báo</span>
+                <span class="stat-val" id="machineWarn">0</span>
+              </div>
+              <div class="dash-stat offline">
+                <span class="stat-label"><span class="stat-led"></span>Offline</span>
+                <span class="stat-val" id="machineOffline">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Buffer panel - máy chưa bố trí, chỉ hiện ở Edit mode -->
+      <aside class="buffer-panel" id="bufferPanel">
+        <div class="panel-head"><h2>Máy chưa bố trí</h2><span class="count" id="bufferCount">0</span></div>
+        <div class="panel-hint">Kéo thẻ máy vào sơ đồ bên phải để đặt vị trí. Dữ liệu đồng bộ trực tiếp qua WebSocket tới mọi trình duyệt đang mở.</div>
+        <div class="panel-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="bufferSearch" placeholder="Tìm theo tên máy hoặc IP...">
+        </div>
+        <div class="buffer-list" id="bufferList"></div>
+      </aside>
+    </aside>
+
+    <section class="layout-wrap">
+      <div class="layout-canvas" id="layoutCanvas">
+        <div class="layout-world" id="layoutWorld"></div>
+        <div class="pin-layer" id="pinLayer"></div>
+        <div class="canvas-empty" id="canvasEmpty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4m0 0 4 4m-4-4-4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          <b>Chưa có ảnh sơ đồ</b>
+          <span id="canvasEmptyHint">Nhấn để chọn ảnh, hoặc kéo file ảnh (.png/.jpg) thả vào đây</span>
+        </div>
+
+        <!-- Float top-left: tên sơ đồ + tỉ lệ máy đã bố trí, nền mờ blur -->
+        <div class="canvas-info-float">
+          <span class="title">Sơ đồ nhà xưởng</span>
+          <span class="stat-pill mono" id="placedStat">0 máy đã bố trí</span>
+        </div>
+
+        <!-- Float top-right: zoom, lưới căn chỉnh, import/xoá ảnh - nền mờ blur -->
+        <div class="canvas-float-tools" id="canvasFloatTools">
+          <div class="zoom-controls">
+            <button class="icon-btn" id="btnZoomOut" title="Thu nhỏ">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>
+            </button>
+            <span class="zoom-level mono" id="zoomLevelText">100%</span>
+            <button class="icon-btn" id="btnZoomIn" title="Phóng to">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+            <button class="icon-btn" id="btnZoomReset" title="Về mặc định (Fit)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            </button>
+          </div>
+          <span class="float-divider"></span>
+          <button class="icon-btn" id="btnGridAlign" title="Bật/tắt lưới căn chỉnh khi kéo thả máy">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
+          </button>
+          <span class="float-divider" id="importDivider"></span>
+          <input type="file" id="layoutFileInput" accept="image/*" hidden>
+          <button class="icon-btn" id="btnImportLayout" title="Import / thay ảnh sơ đồ">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4m0 0 4 4m-4-4-4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          </button>
+          <button class="icon-btn danger" id="btnClearLayout" title="Xoá ảnh sơ đồ hiện tại">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V6h12Z"/></svg>
+          </button>
+        </div>
+
+        <div class="minimap" id="minimap">
+          <div class="minimap-viewport" id="minimapViewport"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast"><span class="led"></span><span id="toastMsg"></span></div>
+
+<script>
+(function(){
+  "use strict";
+
+  const IMG_KEY = 'sm_layout_image_v1';           // ảnh nền sơ đồ - luôn lưu cục bộ
+  const FALLBACK_CACHE_KEY = 'sm_machines_offline_cache_v2'; // v2: bump vì v1 chưa có field zone, tránh cache cũ đè lên seed mới
+  const OFFLINE_FALLBACK_DELAY_MS = 4000;          // chờ 4s không thấy dữ liệu thật -> nạp dữ liệu mẫu
+
+  let machines = [];
+  let layoutImage = localStorage.getItem(IMG_KEY) || null;
+  let myClientId = null;
+  let lockHolder = null;      // { clientId, ip, machineId }
+  let gotServerData = false;  // đã từng nhận init/dữ liệu thật từ server chưa
+  let usingLocalFallback = false; // đang chạy bằng dữ liệu mẫu cục bộ (không có backend)
+  let offlineFallbackTimer = null;
+
+  const bufferList = document.getElementById('bufferList');
+  const bufferCount = document.getElementById('bufferCount');
+  const bufferPanel = document.getElementById('bufferPanel');
+  const canvas = document.getElementById('layoutCanvas');
+  const world = document.getElementById('layoutWorld');
+  const pinLayer = document.getElementById('pinLayer');
+  const canvasEmpty = document.getElementById('canvasEmpty');
+  const placedStat = document.getElementById('placedStat');
+  const btnZoomIn = document.getElementById('btnZoomIn');
+  const btnZoomOut = document.getElementById('btnZoomOut');
+  const btnZoomReset = document.getElementById('btnZoomReset');
+  const zoomLevelText = document.getElementById('zoomLevelText');
+  const minimap = document.getElementById('minimap');
+  const minimapViewport = document.getElementById('minimapViewport');
+  const connDot = document.getElementById('connDot');
+  const connText = document.getElementById('connText');
+  const lockPill = document.getElementById('lockPill');
+  const lockPillText = document.getElementById('lockPillText');
+  const modeBanner = document.getElementById('modeBanner');
+  const toast = document.getElementById('toast');
+  const toastMsg = document.getElementById('toastMsg');
+
+  function showToast(msg, warn){
+    toastMsg.textContent = msg;
+    toast.classList.toggle('warn', !!warn);
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=>toast.classList.remove('show'), 2200);
+  }
+
+  function showModeBanner(kind){
+    modeBanner.className = 'mode-banner show ' + kind;
+    if(kind === 'offline'){
+      modeBanner.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>' +
+        '<span><b>Không kết nối được backend</b> — đang hiển thị dữ liệu mẫu cục bộ để bạn test giao diện/kéo thả. Vị trí sẽ chỉ lưu tạm trên trình duyệt này, không đồng bộ tới máy khác.</span>';
+    } else if(kind === 'memory'){
+      modeBanner.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>' +
+        '<span><b>Backend không kết nối được SQL Server</b> — đang chạy chế độ bộ nhớ tạm (dữ liệu demo, nhiều trình duyệt vẫn đồng bộ được với nhau nhưng sẽ mất khi khởi động lại server).</span>';
+    }
+  }
+  function hideModeBanner(){
+    modeBanner.className = 'mode-banner';
+    modeBanner.innerHTML = '';
+  }
+
+  function levelColor(lvl){ return lvl===1?'red': lvl===2?'amber':'green'; }
+  function levelChip(label, lvl){
+    const cls = levelColor(lvl);
+    const el = document.createElement('span');
+    el.className = 'lvl-chip lvl-' + cls;
+    el.innerHTML = '<span class="lvl-led"></span>' + label;
+    return el;
+  }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+  function findMachine(id){ return machines.find(m => m.id === id); }
+
+  // ================================================================
+  // DỮ LIỆU MẪU DÙNG KHI KHÔNG CÓ BACKEND (chế độ ngoại tuyến)
+  // ================================================================
+  function seedLocalFallback(){
+    return [
+      // Zone 1 - Line A (2 máy) + Line B (chỉ 1 máy -> test flatten, không hiện line-header riêng)
+      {id:'local-1', name:'AGV-01', zone:'Zone 1', line:'Line A', ip:'192.168.1.101', wiperLevel:2, solderLevel:3, version:'ver20260101', x:22, y:30, size:null},
+      {id:'local-2', name:'AGV-02', zone:'Zone 1', line:'Line A', ip:'192.168.1.102', wiperLevel:1, solderLevel:2, version:'ver20260101', x:58, y:38, size:null},
+      {id:'local-3', name:'AGV-03', zone:'Zone 1', line:'Line B', ip:'192.168.1.103', wiperLevel:3, solderLevel:3, version:'ver20251215', x:null, y:null, size:null},
+
+      // Zone 2 - Line C (3 máy, có 1 critical) + Line D (2 máy)
+      {id:'local-4', name:'AGV-04', zone:'Zone 2', line:'Line C', ip:'192.168.1.104', wiperLevel:2, solderLevel:1, version:'ver20260101', x:null, y:null, size:null},
+      {id:'local-5', name:'AGV-05', zone:'Zone 2', line:'Line C', ip:'192.168.1.105', wiperLevel:1, solderLevel:1, version:'ver20251215', x:78, y:62, size:null},
+      {id:'local-6', name:'AGV-06', zone:'Zone 2', line:'Line C', ip:'192.168.1.106', wiperLevel:3, solderLevel:2, version:'ver20260101', x:null, y:null, size:null},
+      {id:'local-7', name:'AGV-07', zone:'Zone 2', line:'Line D', ip:'192.168.1.107', wiperLevel:2, solderLevel:2, version:'ver20251101', x:40, y:78, size:null},
+      {id:'local-8', name:'AGV-08', zone:'Zone 2', line:'Line D', ip:'192.168.1.108', wiperLevel:1, solderLevel:3, version:'ver20251101', x:null, y:null, size:null},
+
+      // Zone 3 - Line E (2 máy, chưa có máy nào đặt trên sơ đồ)
+      {id:'local-9', name:'AGV-09', zone:'Zone 3', line:'Line E', ip:'192.168.1.109', wiperLevel:3, solderLevel:3, version:'ver20260101', x:null, y:null, size:null},
+      {id:'local-10', name:'AGV-10', zone:'Zone 3', line:'Line E', ip:'192.168.1.110', wiperLevel:2, solderLevel:3, version:'ver20260101', x:null, y:null, size:null},
+    ];
+  }
+  function loadFallbackCache(){
+    try{
+      const raw = localStorage.getItem(FALLBACK_CACHE_KEY);
+      if(raw){ const arr = JSON.parse(raw); if(Array.isArray(arr) && arr.length) return arr; }
+    }catch(e){}
+    return null;
+  }
+  function saveFallbackCache(){
+    if(!usingLocalFallback) return;
+    localStorage.setItem(FALLBACK_CACHE_KEY, JSON.stringify(machines));
+  }
+
+  function activateLocalFallback(){
+    if(usingLocalFallback || gotServerData) return;
+    usingLocalFallback = true;
+    myClientId = 'local';
+    lockHolder = null;
+    machines = loadFallbackCache() || seedLocalFallback();
+    connDot.className = 'dot-live off';
+    connText.textContent = 'Ngoại tuyến - dữ liệu mẫu';
+    showModeBanner('offline');
+    showToast('Không kết nối được server - đang dùng dữ liệu mẫu để test giao diện', true);
+    renderAll();
+  }
+
+  // ================================================================
+  // WEBSOCKET: kết nối, tự reconnect với backoff tăng dần.
+  // Nếu sau OFFLINE_FALLBACK_DELAY_MS vẫn chưa nhận được dữ liệu thật,
+  // tự động chuyển sang dữ liệu mẫu cục bộ (nhưng vẫn tiếp tục thử kết nối
+  // nền; nếu kết nối được sau đó sẽ tự chuyển về dữ liệu thật).
+  // ================================================================
+  let ws = null;
+  let reconnectDelay = 1000;
+  const RECONNECT_MAX_MS = 15000;
+
+  function wsUrl(){
+    const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    return proto + location.host;
+  }
+
+  function connectWS(){
+    connDot.className = 'dot-live connecting';
+    connText.textContent = 'Đang kết nối...';
+    try{
+      ws = new WebSocket(wsUrl());
+    }catch(e){
+      scheduleReconnect();
+      return;
+    }
+
+    ws.onopen = () => {
+      reconnectDelay = 1000;
+    };
+
+    ws.onmessage = (ev) => {
+      let msg;
+      try{ msg = JSON.parse(ev.data); }catch(e){ return; }
+      handleServerMessage(msg);
+    };
+
+    ws.onclose = () => {
+      if(!usingLocalFallback){
+        connDot.className = 'dot-live off';
+        connText.textContent = 'Mất kết nối - đang thử lại';
+      }
+      scheduleReconnect();
+    };
+
+    ws.onerror = () => { try{ ws.close(); }catch(e){} };
+  }
+
+  function scheduleReconnect(){
+    setTimeout(connectWS, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 1.6, RECONNECT_MAX_MS);
+  }
+
+  function send(obj){
+    if(usingLocalFallback) return; // ngoại tuyến thì không gửi lên server
+    if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+  }
+
+  function handleServerMessage(msg){
+    if(msg.type === 'welcome'){
+      myClientId = msg.clientId;
+    }
+    else if(msg.type === 'init'){
+      const wasFallback = usingLocalFallback;
+      gotServerData = true;
+      clearTimeout(offlineFallbackTimer);
+      usingLocalFallback = false;
+
+      machines = msg.machines.map(m => ({ ...m, x: m.posX, y: m.posY }));
+      connDot.className = 'dot-live';
+      connText.textContent = 'Đã kết nối';
+
+      if(msg.mode === 'memory') showModeBanner('memory');
+      else hideModeBanner();
+
+      if(wasFallback) showToast('Đã kết nối server - chuyển sang dữ liệu trực tiếp');
+      renderAll();
+    }
+    else if(msg.type === 'db_status'){
+      if(msg.mode === 'memory') showModeBanner('memory');
+      else if(!usingLocalFallback) hideModeBanner();
+    }
+    else if(msg.type === 'status_update'){
+      if(usingLocalFallback) return;
+      const m = machines.find(x => x.ip === msg.ip);
+      if(m){
+        m.wiperLevel = msg.wiperLevel;
+        m.solderLevel = msg.solderLevel;
+        m.timeupdate = new Date().toISOString(); // Cập nhật thời gian nhận data
+        renderAll();
+      }
+    }
+    else if(msg.type === 'position_update'){
+      if(usingLocalFallback) return;
+      const m = findMachine(msg.id);
+      if(m){ m.x = msg.x; m.y = msg.y; renderAll(); }
+    }
+    else if(msg.type === 'size_update'){
+      if(usingLocalFallback) return;
+      const m = findMachine(msg.id);
+      if(m){ m.size = msg.size; renderAll(); }
+    }
+    else if(msg.type === 'lock_status'){
+      const wasMine = lockHolder && lockHolder.clientId === myClientId;
+      lockHolder = msg.locked ? { clientId: msg.clientId, ip: msg.ip, machineId: msg.machineId } : null;
+      // If server released our lock (timeout) and we're in Edit mode, force switch to View
+      if(!msg.locked && wasMine && isEditMode){
+        isEditMode = false;
+        clearTimeout(editInactivityTimer);
+        stopLockHeartbeat();
+        updateModeSwitch();
+        showToast('Tự động chuyển sang View mode do không hoạt động', false);
+      }
+
+      updateLockUI();
+    }
+    else if(msg.type === 'lock_denied'){
+      showToast('Đang bị chỉnh sửa bởi ' + msg.ip + ', vui lòng thử lại sau', true);
+      cancelActiveDrag();
+    }
+    else if(msg.type === 'machine_created'){
+      if(usingLocalFallback) return;
+      if(!machines.find(m => m.id === msg.machine.id)){
+        machines.push({ ...msg.machine, x: msg.machine.posX, y: msg.machine.posY });
+        renderAll();
+      }
+    }
+    else if(msg.type === 'machine_updated'){
+      if(usingLocalFallback) return;
+      const idx = machines.findIndex(m => m.id === msg.machine.id);
+      const merged = { ...msg.machine, x: msg.machine.posX, y: msg.machine.posY };
+      if(idx >= 0) machines[idx] = merged; else machines.push(merged);
+      renderAll();
+    }
+    else if(msg.type === 'machine_deleted'){
+      if(usingLocalFallback) return;
+      machines = machines.filter(m => m.id !== msg.id);
+      renderAll();
+    }
+  }
+
+  function updateLockUI(){
+    const lockedByOther = lockHolder && lockHolder.clientId !== myClientId;
+    canvas.classList.toggle('locked-by-other', !!lockedByOther);
+
+    if(lockedByOther){
+      lockPill.classList.add('show');
+      lockPillText.textContent = 'Đang được chỉnh sửa bởi ' + lockHolder.ip;
+    } else {
+      lockPill.classList.remove('show');
+    }
+    // Don't re-render during an active drag — it would destroy the dragged element
+    if(!dragEl) renderAll();
+  }
+
+
+  // ================================================================
+  // RENDER
+  // ================================================================
+  function renderAll(){
+    // If a drag is in progress, defer the re-render to avoid destroying the dragged element
+    if(dragEl){ renderAll._pending = true; return; }
+    renderAll._pending = false;
+
+    renderBufferPanel();
+
+    // Quét toàn document (không chỉ trong world) để chắc chắn dọn sạch mọi pin,
+    // kể cả pin bị "mồ côi" ngoài document.body do một lần kéo-thả bị lỗi/gián đoạn giữa chừng.
+    document.querySelectorAll('.machine-pin').forEach(p=>p.remove());
+    const placed = machines.filter(m => m.x !== null && m.x !== undefined);
+    placed.forEach(m => pinLayer.appendChild(buildPin(m)));
+
+    canvasEmpty.style.display = layoutImage ? 'none' : 'flex';
+    world.classList.toggle('blueprint-mode', !layoutImage);
+    world.style.backgroundImage = layoutImage ? `url(${layoutImage})` : '';
+    minimap.classList.toggle('blueprint-mode', !layoutImage);
+    minimap.style.backgroundImage = layoutImage ? `url(${layoutImage})` : '';
+
+    placedStat.textContent = placed.length + ' / ' + machines.length + ' máy đã bố trí';
+
+    renderDashboard();
+  }
+
+  // ================================================================
+  // DASHBOARD THỐNG KÊ
+  // ================================================================
+  function setDonut(elId, holeId, pct, colorVar, subLabel){
+    const donut = document.getElementById(elId);
+    const hole = document.getElementById(holeId);
+    if(!donut || !hole) return;
+    const p = Math.max(0, Math.min(100, pct));
+    donut.style.background = `conic-gradient(var(${colorVar}) 0% ${p}%, var(--border-soft) ${p}% 100%)`;
+    hole.innerHTML = Math.round(p) + '%<br>' + subLabel;
+  }
+
+  function renderDashboard(){
+    let solderFull=0, solderMid=0, solderLow=0;
+    let wiperFull=0, wiperMid=0, wiperLow=0;
+    let machineOnline=0, machineWarn=0, machineOffline=0;
+    const now = new Date();
+
+    machines.forEach(m => {
+      // Solder: 3=Full, 2=Mid, 1=Low
+      if(m.solderLevel === 3) solderFull++;
+      else if(m.solderLevel === 2) solderMid++;
+      else solderLow++;
+      // Wiper: 3=Full, 2=Mid, 1=Low
+      if(m.wiperLevel === 3) wiperFull++;
+      else if(m.wiperLevel === 2) wiperMid++;
+      else wiperLow++;
+
+      // Trạng thái kết nối máy: dùng lại đúng ngưỡng đang tô màu pin
+      // (<2 phút = online, <5 phút = cảnh báo, còn lại/không có timeupdate = offline)
+      if(m.timeupdate){
+        const diffMin = (now - new Date(m.timeupdate)) / 60000;
+        if(diffMin < 2) machineOnline++;
+        else if(diffMin < 5) machineWarn++;
+        else machineOffline++;
+      } else {
+        machineOffline++;
+      }
+    });
+
+    const total = machines.length || 0;
+
+    document.getElementById('solderTotal').textContent = total + ' máy';
+    document.getElementById('solderFull').textContent = solderFull;
+    document.getElementById('solderMid').textContent = solderMid;
+    document.getElementById('solderLow').textContent = solderLow;
+    setDonut('solderDonut','solderDonutLabel', total ? solderFull/total*100 : 0, '--green', 'Đầy');
+
+    document.getElementById('wiperTotal').textContent = total + ' máy';
+    document.getElementById('wiperFull').textContent = wiperFull;
+    document.getElementById('wiperMid').textContent = wiperMid;
+    document.getElementById('wiperLow').textContent = wiperLow;
+    setDonut('wiperDonut','wiperDonutLabel', total ? wiperFull/total*100 : 0, '--green', 'Đầy');
+
+    document.getElementById('machineTotal').textContent = total;
+    document.getElementById('machineOnline').textContent = machineOnline;
+    document.getElementById('machineWarn').textContent = machineWarn;
+    document.getElementById('machineOffline').textContent = machineOffline;
+    setDonut('statusDonut','statusDonutLabel', total ? machineOnline/total*100 : 0, '--accent', 'Online');
+  }
+
+  function highlightMatch(text, query){
+    if(!query) return document.createTextNode(text);
+    const idx = (text || '').toLowerCase().indexOf(query.toLowerCase());
+    if(idx === -1) return document.createTextNode(text);
+    const frag = document.createDocumentFragment();
+    frag.appendChild(document.createTextNode(text.slice(0, idx)));
+    const mark = document.createElement('mark');
+    mark.textContent = text.slice(idx, idx + query.length);
+    frag.appendChild(mark);
+    frag.appendChild(document.createTextNode(text.slice(idx + query.length)));
+    return frag;
+  }
+
+  // ================================================================
+  // BUFFER PANEL: tìm kiếm + group theo Zone -> Line
+  // Model máy có name/line/zone. Line chỉ 1 máy thì bỏ qua line-header,
+  // hiện thẳng chip dưới zone luôn (đỡ phải bấm mở thêm 1 cấp cho có 1 máy).
+  // ================================================================
+  const bufferSearchInput = document.getElementById('bufferSearch');
+  const COLLAPSE_KEY = 'buffer_collapsed_groups_v1';
+  let collapsedGroups = new Set();
+  try{ collapsedGroups = new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]')); }catch(e){}
+  function saveCollapsedGroups(){
+    try{ localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...collapsedGroups])); }catch(e){}
+  }
+
+  function stripDiacritics(str){
+    return (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g,'d').replace(/Đ/g,'D');
+  }
+
+  function priorityRank(m){
+    // Số càng nhỏ càng khẩn cấp: level 1 (Thấp) lên đầu danh sách trong line
+    return Math.min(m.wiperLevel ?? 3, m.solderLevel ?? 3);
+  }
+
+  // Chỉ là lưới an toàn tối thiểu phòng khi dữ liệu thiếu zone/line (không nên xảy ra với
+  // model thật - mọi máy đều có zone/line sẵn) - không cần đẩy xuống cuối hay xử lý riêng gì cả.
+  const FALLBACK_ZONE = 'Chưa phân loại';
+  const FALLBACK_LINE = 'Chưa gán line';
+
+  function sortGroupNames(names){
+    return names.sort((a, b) => a.localeCompare(b, 'vi'));
+  }
+
+  function renderBufferPanel(){
+    const rawQuery = (bufferSearchInput.value || '').trim();
+    const query = stripDiacritics(rawQuery).toLowerCase();
+    const searching = query.length > 0;
+
+    let unplaced = machines.filter(m => m.x === null || m.x === undefined);
+    bufferCount.textContent = unplaced.length;
+
+    if(searching){
+      unplaced = unplaced.filter(m => {
+        const hay = stripDiacritics((m.name || '') + ' ' + (m.ip || '')).toLowerCase();
+        return hay.includes(query);
+      });
+    }
+
+    bufferList.innerHTML = '';
+
+    if(unplaced.length === 0){
+      const e = document.createElement('div');
+      e.className = 'buffer-empty';
+      e.textContent = searching ? 'Không tìm thấy máy khớp với "' + rawQuery + '".' : 'Tất cả máy đã được bố trí trên sơ đồ.';
+      bufferList.appendChild(e);
+      return;
+    }
+
+    // Group: Zone -> Line -> [machines]
+    const zones = new Map();
+    unplaced.forEach(m => {
+      const zoneName = m.zone || FALLBACK_ZONE;
+      const lineName = m.line || FALLBACK_LINE;
+      if(!zones.has(zoneName)) zones.set(zoneName, new Map());
+      const lines = zones.get(zoneName);
+      if(!lines.has(lineName)) lines.set(lineName, []);
+      lines.get(lineName).push(m);
+    });
+
+    sortGroupNames([...zones.keys()]).forEach(zoneName => {
+      const lines = zones.get(zoneName);
+      const zoneMachines = [...lines.values()].flat();
+      const zoneCritical = zoneMachines.some(m => m.wiperLevel === 1 || m.solderLevel === 1);
+      const zoneKey = 'Z::' + zoneName;
+      // Khi đang tìm kiếm luôn mở hết để dễ thấy kết quả; ngoài ra theo đúng trạng thái người dùng đã bấm trước đó
+      const zoneCollapsed = !searching && collapsedGroups.has(zoneKey);
+
+      const zoneEl = document.createElement('div');
+      zoneEl.className = 'zone-group' + (zoneCollapsed ? ' collapsed' : '');
+      zoneEl.dataset.key = zoneKey;
+
+      const zHeader = document.createElement('div');
+      zHeader.className = 'zone-header';
+      zHeader.innerHTML =
+        '<svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>' +
+        (zoneCritical ? '<span class="critical-dot" title="Có máy mức Thấp cần chú ý"></span>' : '') +
+        '<span class="group-name"></span><span class="group-count"></span>';
+      zHeader.querySelector('.group-name').textContent = zoneName;
+      zHeader.querySelector('.group-count').textContent = zoneMachines.length;
+      zoneEl.appendChild(zHeader);
+
+      const zBody = document.createElement('div');
+      zBody.className = 'zone-body';
+
+      sortGroupNames([...lines.keys()]).forEach(lineName => {
+        const lineMachines = lines.get(lineName).slice().sort((a, b) => priorityRank(a) - priorityRank(b));
+
+        if(lineMachines.length === 1){
+          // Line chỉ có 1 máy -> bỏ qua line-header, hiện thẳng chip dưới zone
+          zBody.appendChild(buildChip(lineMachines[0], rawQuery));
+          return;
+        }
+
+        const lineCritical = lineMachines.some(m => m.wiperLevel === 1 || m.solderLevel === 1);
+        const lineKey = 'L::' + zoneName + '::' + lineName;
+        const lineCollapsed = !searching && collapsedGroups.has(lineKey);
+
+        const lineEl = document.createElement('div');
+        lineEl.className = 'line-group' + (lineCollapsed ? ' collapsed' : '');
+        lineEl.dataset.key = lineKey;
+
+        const lHeader = document.createElement('div');
+        lHeader.className = 'line-header';
+        lHeader.innerHTML =
+          '<svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>' +
+          (lineCritical ? '<span class="critical-dot" title="Có máy mức Thấp cần chú ý"></span>' : '') +
+          '<span class="group-name"></span><span class="group-count"></span>';
+        lHeader.querySelector('.group-name').textContent = lineName;
+        lHeader.querySelector('.group-count').textContent = lineMachines.length;
+        lineEl.appendChild(lHeader);
+
+        const lBody = document.createElement('div');
+        lBody.className = 'line-body';
+        lineMachines.forEach(m => lBody.appendChild(buildChip(m, rawQuery)));
+        lineEl.appendChild(lBody);
+
+        zBody.appendChild(lineEl);
+      });
+
+      zoneEl.appendChild(zBody);
+      bufferList.appendChild(zoneEl);
+    });
+  }
+
+  // Toggle collapse qua event delegation (DOM group header bị tạo lại mỗi lần render nên không gắn listener riêng lẻ)
+  bufferList.addEventListener('click', e => {
+    const header = e.target.closest('.zone-header, .line-header');
+    if(!header) return;
+    const group = header.parentElement;
+    const key = group.dataset.key;
+    const collapsed = group.classList.toggle('collapsed');
+    if(collapsed) collapsedGroups.add(key); else collapsedGroups.delete(key);
+    saveCollapsedGroups();
+  });
+
+  // Tìm kiếm: chỉ vẽ lại buffer panel, không đụng tới pin trên canvas hay dashboard
+  bufferSearchInput.addEventListener('input', () => renderBufferPanel());
+
+  function buildChip(m, searchQuery){
+    const chip = document.createElement('div');
+    const lockedByOther = lockHolder && lockHolder.clientId !== myClientId;
+    chip.className = 'buffer-chip' + (lockedByOther ? ' locked' : '');
+    chip.dataset.id = m.id;
+
+    const top = document.createElement('div');
+    top.className = 'chip-top';
+    const name = document.createElement('span'); name.className = 'chip-name';
+    name.appendChild(highlightMatch(m.name || '', searchQuery));
+    const line = document.createElement('span'); line.className = 'chip-line'; line.textContent = m.line;
+    top.appendChild(name); top.appendChild(line);
+
+    const ip = document.createElement('div'); ip.className = 'chip-ip';
+    ip.appendChild(highlightMatch(m.ip || '', searchQuery));
+
+    let version = null;
+    if(m.version){
+      version = document.createElement('div'); version.className = 'chip-version'; version.textContent = 'FW ' + m.version;
+    }
+
+    const levels = document.createElement('div'); levels.className = 'chip-levels';
+    levels.appendChild(levelChip('W', m.wiperLevel));
+    levels.appendChild(levelChip('S', m.solderLevel));
+
+    // Bottom section with levels and time ago
+    const bottom = document.createElement('div');
+    bottom.className = 'chip-bottom';
+    bottom.appendChild(levels);
+    
+    // Time ago display for buffer chip (bottom right)
+    if (m.timeupdate) {
+      const timeAgo = document.createElement('span');
+      timeAgo.className = 'pin-time-ago';
+      const tu = new Date(m.timeupdate);
+      const now = new Date();
+      const diffMin = (now - tu) / 60000;
+      if (diffMin < 2) timeAgo.classList.add('fresh');
+      else if (diffMin < 5) timeAgo.classList.add('warn');
+      else timeAgo.classList.add('stale');
+      timeAgo.textContent = getTimeAgoText(m.timeupdate);
+      bottom.appendChild(timeAgo);
+    }
+
+    chip.appendChild(top); chip.appendChild(ip); if(version) chip.appendChild(version); chip.appendChild(bottom);
+    if(!lockedByOther && isEditMode) attachBufferDrag(chip, m);
+    return chip;
+  }
+
+  function getTimeAgoText(timeupdate){
+    if (!timeupdate) return '';
+    const tu = new Date(timeupdate);
+    const now = new Date();
+    const diffMin = (now - tu) / 60000;
+    if (diffMin < 1) return 'Vừa xong';
+    return diffMin.toFixed(1) + ' phút';
+  }
+
+  // Kích thước icon máy: machine.size là hệ số nhân (1 = mặc định như hiện tại).
+  // null/undefined/<=0 (máy mới tạo hoặc chưa từng chỉnh) => dùng mặc định.
+  const DEFAULT_PIN_SIZE = 1;
+  const PIN_SIZE_MIN = 0.6;
+  const PIN_SIZE_MAX = 2.2;
+  function effectivePinSize(m){
+    const s = m.size;
+    if(s == null || isNaN(s) || s <= 0) return DEFAULT_PIN_SIZE;
+    return clampNum(s, PIN_SIZE_MIN, PIN_SIZE_MAX);
+  }
+
+  function buildPin(m){
+    const pin = document.createElement('div');
+    const lockedByOther = lockHolder && lockHolder.clientId !== myClientId;
+    pin.className = 'machine-pin' + (lockedByOther ? ' locked' : '');
+    pin.dataset.id = m.id;
+    // pin-layer không bị scale theo zoom, nên phải tự tính toạ độ pixel
+    // tương ứng với điểm (x%, y%) trên world tại pan/zoom hiện tại.
+    const pos0 = pinScreenPos(m);
+    pin.style.left = pos0.x + 'px';
+    pin.style.top = pos0.y + 'px';
+    pin.style.setProperty('--pin-size-mult', effectivePinSize(m).toFixed(3));
+
+    // Lớp ngoài lo định vị (translate)
+    const anchor = document.createElement('div');
+    anchor.className = 'pin-anchor';
+
+    // Lớp trong lo scale kích thước
+    const scaler = document.createElement('div');
+    scaler.className = 'pin-scale';
+
+    const card = document.createElement('div'); card.className = 'pin-card';
+    const name = document.createElement('div'); name.className = 'pin-name'; name.textContent = m.name;
+    const ip = document.createElement('div'); ip.className = 'pin-ip'; ip.textContent = m.ip;
+    const version = document.createElement('div'); version.className = 'pin-version'; version.textContent = m.version ? ('FW ' + m.version) : '';
+    
+    // Time ago display
+    const timeAgo = document.createElement('div');
+    timeAgo.className = 'pin-time-ago';
+    if (m.timeupdate) {
+      const tu = new Date(m.timeupdate);
+      const now = new Date();
+      const diffMin = (now - tu) / 60000;
+      if (diffMin < 2) timeAgo.classList.add('fresh');
+      else if (diffMin < 5) timeAgo.classList.add('warn');
+      else timeAgo.classList.add('stale');
+      timeAgo.textContent = getTimeAgoText(m.timeupdate);
+    }
+    
+    // Append content to card
+    card.appendChild(name);
+    card.appendChild(ip);
+    if(m.version) card.appendChild(version);
+    card.appendChild(timeAgo);
+    
+    // Oval container with wiper/solder dots and machine status color
+    const oval = document.createElement('div');
+    oval.className = 'pin-oval';
+    
+    // Add machine status class based on timeupdate
+    if (m.timeupdate) {
+      const tu = new Date(m.timeupdate);
+      const now = new Date();
+      const diffMin = (now - tu) / 60000;
+      if (diffMin < 2) oval.classList.add('status-fresh');
+      else if (diffMin < 5) oval.classList.add('status-warn');
+      else oval.classList.add('status-stale');
+    }
+    
+    // Left dot: wiper (color based on level)
+    const wiperDot = document.createElement('span');
+    wiperDot.className = 'oval-dot wiper lvl-' + m.wiperLevel;
+    wiperDot.title = 'Wiper: ' + (m.wiperLevel===1?'THẤP':m.wiperLevel===2?'TRUNG BÌNH':'ĐẦY');
+    
+    // Right dot: solder (color based on level)
+    const solderDot = document.createElement('span');
+    solderDot.className = 'oval-dot solder lvl-' + m.solderLevel;
+    solderDot.title = 'Solder: ' + (m.solderLevel===1?'THẤP':m.solderLevel===2?'TRUNG BÌNH':'ĐẦY');
+    
+    oval.appendChild(wiperDot);
+    oval.appendChild(solderDot);
+
+    // Vòng hào quang nhấp nháy khi ít nhất 1 trong 2 cảm biến ở mức Thấp (khẩn cấp)
+    if(m.wiperLevel === 1 || m.solderLevel === 1){
+      oval.classList.add('critical');
+    }
+    
+    // Edit mode: chỉ hiển thị tên
+    const info = document.createElement('div');
+    info.className = 'pin-oval-info';
+    info.textContent = m.name;
+    oval.appendChild(info);
+
+    // Tay cầm co giãn icon - chỉ tạo khi ở Edit mode và máy không bị người khác khoá
+    let resizeHandle = null;
+    if(!lockedByOther && isEditMode){
+      resizeHandle = document.createElement('div');
+      resizeHandle.className = 'pin-resize-handle';
+      resizeHandle.title = 'Kéo để đổi kích thước icon';
+      oval.appendChild(resizeHandle);
+    }
+    
+    // Oval nằm ngoài card để luôn hiển thị
+    scaler.appendChild(oval);
+    scaler.appendChild(card);
+    anchor.appendChild(scaler);
+    pin.appendChild(anchor);
+    
+    // Click vào oval để toggle popup
+    oval.addEventListener('click', function(e){
+      e.stopPropagation();
+      // Đóng tất cả các popup khác
+      canvas.querySelectorAll('.machine-pin.show-card').forEach(p => {
+        if(p !== pin) p.classList.remove('show-card');
+      });
+      pin.classList.toggle('show-card');
+    });
+    
+    if(!lockedByOther && isEditMode) attachPinDrag(pin, m);
+    if(resizeHandle) attachPinResize(resizeHandle, pin, m);
+    return pin;
+  }
+
+  // ================================================================
+  // Trợ giúp thao tác dữ liệu, tự rẽ nhánh online (WS) / offline (local)
+  // ================================================================
+  function requestLockFor(machineId){ send({ type: 'lock_request', machineId }); }
+  function releaseLockNow(){ send({ type: 'lock_release' }); }
+
+  function commitPosition(machine, x, y){
+    machine.x = x; machine.y = y;
+    if(usingLocalFallback){ saveFallbackCache(); }
+    else { send({ type: 'update_position', id: machine.id, x, y }); }
+    renderAll();
+  }
+  function commitSize(machine, size){
+    machine.size = size;
+    if(usingLocalFallback){ saveFallbackCache(); }
+    else { send({ type: 'update_size', id: machine.id, size }); }
+    renderAll();
+  }
+  function commitUnplace(machine){
+    machine.x = null; machine.y = null;
+    if(usingLocalFallback){ saveFallbackCache(); }
+    else { send({ type: 'unplace', id: machine.id }); }
+    renderAll();
+  }
+
+  // ================================================================
+  // DRAG & DROP
+  // ================================================================
+  let dragEl=null, dragMoved=false, dragStartX=0, dragStartY=0, dragOffX=0, dragOffY=0;
+  const MOVE_THRESHOLD = 6;
+  // Ngưỡng riêng cho việc kéo pin đã đặt trên sơ đồ (attachPinDrag).
+  // Giữ nhỏ hơn MOVE_THRESHOLD để tránh "vùng chết" quanh điểm bắt đầu kéo:
+  // trước đây nếu tổng quãng đường di chuyển < MOVE_THRESHOLD (6px), dragMoved
+  // không bao giờ được set true => pointerup không commit gì cả => pin coi như
+  // "nhảy về" vị trí cũ dù thực tế đã kéo vài px. Giá trị nhỏ này vẫn đủ để
+  // phân biệt "click mở popup" (không di chuyển) với "kéo" (có di chuyển).
+  const PIN_MOVE_THRESHOLD = 3;
+
+  function isOverRect(e, rect){
+    return e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
+  }
+
+  function cancelActiveDrag(){
+    if(!dragEl) return;
+    dragEl.classList.remove('dragging');
+    dragEl.style.position=''; dragEl.style.left=''; dragEl.style.top=''; dragEl.style.width='';
+    dragEl = null; dragMoved = false;
+  }
+
+  function attachBufferDrag(chip, machine){
+    let longPressTimer = null;
+    let pendingPointerId = null;
+    let touchStartX = 0, touchStartY = 0;
+
+    function beginDrag(pointerId, clientX, clientY){
+      dragEl = chip; dragMoved = false;
+      try{ chip.setPointerCapture(pointerId); }catch(err){}
+      dragStartX = clientX; dragStartY = clientY;
+      const r = chip.getBoundingClientRect();
+      dragOffX = clientX - r.left; dragOffY = clientY - r.top;
+      chip.style.width = r.width + 'px';
+      requestLockFor(machine.id);
+      resetEditInactivityTimer(); // Reset timer on user action
+    }
+
+    function clearPending(){
+      if(longPressTimer){ clearTimeout(longPressTimer); longPressTimer = null; }
+      pendingPointerId = null;
+    }
+
+    chip.addEventListener('pointerdown', function(e){
+      if(e.pointerType === 'mouse' && e.button !== 0) return;
+      if(lockHolder && lockHolder.clientId !== myClientId) return;
+
+      // Click-and-hold (chuột) / touch-and-hold (chạm) THỐNG NHẤT cho mọi loại con trỏ:
+      // giữ yên ~220ms không di chuyển mới coi là ý định kéo máy ra sơ đồ. Nhờ vậy click
+      // chuột thường, lăn chuột (wheel), và vuốt nhanh trên cảm ứng đều không bị hiểu
+      // nhầm thành kéo-thả — chỉ khi thực sự "giữ" mới bắt đầu kéo.
+      pendingPointerId = e.pointerId;
+      touchStartX = e.clientX; touchStartY = e.clientY;
+      clearTimeout(longPressTimer);
+      longPressTimer = setTimeout(() => {
+        longPressTimer = null;
+        beginDrag(e.pointerId, touchStartX, touchStartY);
+        chip.classList.add('drag-armed'); // phản hồi thị giác: đã "cầm" được máy, có thể kéo đi
+      }, 220);
+    });
+    chip.addEventListener('pointermove', function(e){
+      // Đang chờ long-press (chưa armed) mà tay di chuyển đủ xa -> huỷ, coi như đang cuộn
+      if(pendingPointerId === e.pointerId && dragEl !== chip){
+        const pdx = e.clientX - touchStartX, pdy = e.clientY - touchStartY;
+        if(Math.hypot(pdx, pdy) > 10) clearPending();
+        return;
+      }
+      if(dragEl !== chip) return;
+      const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
+      if(!dragMoved && Math.hypot(dx,dy) < MOVE_THRESHOLD) return;
+      dragMoved = true;
+      chip.classList.remove('drag-armed');
+      chip.classList.add('dragging');
+      chip.style.position = 'fixed';
+      chip.style.left = (e.clientX - dragOffX) + 'px';
+      chip.style.top = (e.clientY - dragOffY) + 'px';
+      canvas.classList.toggle('drag-over', isOverRect(e, canvas.getBoundingClientRect()));
+    });
+    chip.addEventListener('pointerup', function(e){
+      clearPending();
+      chip.classList.remove('drag-armed');
+      if(dragEl !== chip) return;
+      chip.releasePointerCapture(e.pointerId);
+      canvas.classList.remove('drag-over');
+      const viewportRect = canvas.getBoundingClientRect();
+      if(dragMoved && isOverRect(e, viewportRect)){
+        // % tính theo world rect (world.getBoundingClientRect() đã tự phản ánh pan/zoom hiện tại)
+        const wr = world.getBoundingClientRect();
+        const px = clamp(((e.clientX - wr.left) / wr.width) * 100, 0, 100);
+        const py = clamp(((e.clientY - wr.top) / wr.height) * 100, 0, 100);
+        commitPosition(machine, +px.toFixed(2), +py.toFixed(2));
+        showToast(machine.name + ' đã được đặt vào sơ đồ');
+      } else {
+        chip.style.position=''; chip.style.left=''; chip.style.top=''; chip.style.width='';
+        chip.classList.remove('dragging');
+      }
+      // Don't release lock here — we're still in Edit mode.
+      // Lock is released when switching to View mode or on timeout.
+      dragEl = null; dragMoved = false;
+      if(renderAll._pending) renderAll();
+    });
+    chip.addEventListener('pointercancel', () => { clearPending(); chip.classList.remove('drag-armed'); cancelActiveDrag(); if(renderAll._pending) renderAll(); });
+  }
+
+
+  function attachPinDrag(pin, machine){
+    let pinOriginalParent = null;
+    let anchorEl = null;
+    let scalerEl = null;
+    let dragOffsetX = 0, dragOffsetY = 0;
+    
+    // Find the anchor/scaler element
+    anchorEl = pin.querySelector('.pin-anchor');
+    scalerEl = pin.querySelector('.pin-scale');
+    
+    pin.addEventListener('pointerdown', function(e){
+      if(e.button !== 0) return;
+      if(lockHolder && lockHolder.clientId !== myClientId) return;
+      dragEl = pin; dragMoved = false;
+      pin.setPointerCapture(e.pointerId);
+      dragStartX = e.clientX; dragStartY = e.clientY;
+
+      // .pin-scale dùng transform-origin: center, nên việc scale (--pin-scale) không bao giờ
+      // làm lệch tâm hiển thị khỏi điểm neo của .pin-anchor (-50%,-50%), bất kể scale là bao
+      // nhiêu. Vì vậy cả 2 trục X/Y đều đối xứng như nhau: chỉ cần dùng kích thước GỐC
+      // (chưa scale) chia đôi là ra đúng offset để cursor luôn nằm ở tâm icon, cả lúc đang
+      // kéo lẫn lúc đã thả ra - không cần biết currentContainerScale là bao nhiêu.
+      let offsetW, offsetH;
+      if(scalerEl){
+        offsetW = scalerEl.offsetWidth;
+        offsetH = scalerEl.offsetHeight;
+      } else {
+        const r = pin.getBoundingClientRect();
+        offsetW = r.width; offsetH = r.height;
+      }
+      dragOffsetX = offsetW / 2;
+      dragOffsetY = offsetH / 2;
+
+      requestLockFor(machine.id);
+      resetEditInactivityTimer();
+      e.preventDefault();
+    });
+    pin.addEventListener('pointermove', function(e){
+      if(dragEl !== pin) return;
+      const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
+      if(!dragMoved && Math.hypot(dx,dy) < PIN_MOVE_THRESHOLD) return;
+      dragMoved = true;
+      if(pinOriginalParent === null){
+        pinOriginalParent = pin.parentNode;
+        // Đúng lúc tách khỏi world (mất scale(zoom) của world), khoá luôn --pin-scale
+        // về giá trị "phẳng" currentContainerScale ngay trong CÙNG một nhịp đồng bộ này,
+        // để trình duyệt chỉ vẽ 1 lần với kích thước cuối cùng - không có khung hình trung gian bị lệch size.
+        if(scalerEl) scalerEl.style.setProperty('--pin-scale', currentContainerScale.toFixed(3));
+        document.body.appendChild(pin);
+        pin.classList.add('dragging');
+      }
+      // Position pin so cursor stays at center (where anchor transform would put it)
+      pin.style.position = 'fixed';
+      pin.style.left = (e.clientX - dragOffsetX) + 'px';
+      pin.style.top = (e.clientY - dragOffsetY) + 'px';
+      if(anchorEl) anchorEl.style.transform = 'none';
+
+      // Luôn tính lại % theo con trỏ thực, KHÔNG chặn theo việc con trỏ có đang nằm trong
+      // khung nhìn canvas hay không - vì khi zoom sâu, chỉ cần vượt nhẹ ra mép canvas là
+      // sẽ bị "đóng băng" ở vị trí cũ nếu gate theo overCanvas (bug đã gặp: thả đâu cũng
+      // về đúng 1 điểm cố định ở mép). clamp(0,100) bên dưới đã đủ để giới hạn trong world rồi.
+      const wr = world.getBoundingClientRect();
+      const px = clamp(((e.clientX - wr.left) / wr.width) * 100, 0, 100);
+      const py = clamp(((e.clientY - wr.top) / wr.height) * 100, 0, 100);
+      pin._pendingX = px; pin._pendingY = py;
+
+      bufferPanel.classList.toggle('drag-over', isOverRect(e, bufferPanel.getBoundingClientRect()));
+    });
+
+
+    pin.addEventListener('pointerup', function(e){
+      if(dragEl !== pin) return;
+      pin.releasePointerCapture(e.pointerId);
+      bufferPanel.classList.remove('drag-over');
+      const wasMoved = dragMoved;
+      if(anchorEl) anchorEl.style.transform = '';
+      if(scalerEl) scalerEl.style.removeProperty('--pin-scale');
+      if(pin.parentNode === document.body) pin.remove();
+      dragEl = null; dragMoved = false; pinOriginalParent = null;
+      if(wasMoved && isOverRect(e, bufferPanel.getBoundingClientRect())){
+        commitUnplace(machine);
+        showToast(machine.name + ' đã gỡ khỏi sơ đồ');
+      } else if(wasMoved){
+        // Tính lại % ngay tại điểm thả (thay vì chỉ dựa vào pin._pendingX của lần
+        // pointermove gần nhất) để đảm bảo vị trí lưu luôn khớp chính xác với nơi
+        // con trỏ thực sự dừng lại, kể cả với các thao tác kéo rất ngắn.
+        const wr = world.getBoundingClientRect();
+        const px = clamp(((e.clientX - wr.left) / wr.width) * 100, 0, 100);
+        const py = clamp(((e.clientY - wr.top) / wr.height) * 100, 0, 100);
+        commitPosition(machine, +px.toFixed(2), +py.toFixed(2));
+      }
+      if(renderAll._pending) renderAll();
+    });
+
+    pin.addEventListener('pointercancel', () => {
+      dragEl = null; dragMoved = false;
+      if(anchorEl) anchorEl.style.transform = '';
+      if(scalerEl) scalerEl.style.removeProperty('--pin-scale');
+      if(pin.parentNode === document.body) pin.remove();
+      if(renderAll._pending) renderAll();
+      pinOriginalParent = null;
+    });
+
+  }
+
+  // Kéo tay cầm ở góc oval để co giãn kích thước icon (chỉ Edit mode).
+  // Dùng biến cục bộ riêng (không đụng tới dragEl toàn cục của kéo-thả vị trí),
+  // nên 2 thao tác không xung đột nhau; e.stopPropagation() chặn không cho
+  // pointerdown/click lọt lên pin (kéo vị trí) hay oval (mở popup card).
+  function attachPinResize(handle, pin, machine){
+    const RESIZE_SENSITIVITY = 140; // số px kéo tương ứng với 1.0x kích thước
+    let resizing = false, moved = false, startX = 0, startY = 0, startSize = 1;
+
+    handle.addEventListener('click', e => e.stopPropagation());
+
+    handle.addEventListener('pointerdown', function(e){
+      if(e.button !== 0) return;
+      if(lockHolder && lockHolder.clientId !== myClientId) return;
+      e.stopPropagation();
+      e.preventDefault();
+      resizing = true; moved = false;
+      handle.setPointerCapture(e.pointerId);
+      startX = e.clientX; startY = e.clientY;
+      startSize = effectivePinSize(machine);
+      requestLockFor(machine.id);
+      resetEditInactivityTimer();
+    });
+
+    handle.addEventListener('pointermove', function(e){
+      if(!resizing) return;
+      e.stopPropagation();
+      const dx = e.clientX - startX, dy = e.clientY - startY;
+      if(!moved && Math.hypot(dx, dy) < 2) return;
+      moved = true;
+      const delta = (dx + dy) / 2 / RESIZE_SENSITIVITY;
+      const newSize = clampNum(startSize + delta, PIN_SIZE_MIN, PIN_SIZE_MAX);
+      pin.style.setProperty('--pin-size-mult', newSize.toFixed(3));
+      pin._pendingSize = newSize;
+    });
+
+    handle.addEventListener('pointerup', function(e){
+      if(!resizing) return;
+      e.stopPropagation();
+      handle.releasePointerCapture(e.pointerId);
+      resizing = false;
+      if(moved && pin._pendingSize != null){
+        commitSize(machine, +pin._pendingSize.toFixed(3));
+      } else {
+        pin.style.setProperty('--pin-size-mult', startSize.toFixed(3));
+      }
+      moved = false;
+    });
+
+    handle.addEventListener('pointercancel', function(){
+      resizing = false; moved = false;
+      pin.style.setProperty('--pin-size-mult', startSize.toFixed(3));
+    });
+  }
+
+
+
+  // ================================================================
+  // IMPORT / XOÁ ẢNH LAYOUT (luôn lưu cục bộ theo localStorage)
+  // Nút Import + Xoá nay là floating tool trong canvas (góc trên-phải),
+  // chỉ hiện khi: Edit mode && đã có ảnh sơ đồ.
+  // ================================================================
+  const fileInput = document.getElementById('layoutFileInput');
+  const canvasFloatTools = document.getElementById('canvasFloatTools');
+  const btnImportLayout = document.getElementById('btnImportLayout');
+  const btnClearLayout = document.getElementById('btnClearLayout');
+
+  function handleFile(file){
+    if(!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      layoutImage = reader.result;
+      localStorage.setItem(IMG_KEY, layoutImage);
+      showToast('Đã import ảnh sơ đồ');
+      renderAll();
+      updateCanvasFloatTools();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearLayoutImage(){
+    if(!layoutImage) return;
+    if(!confirm('Xoá ảnh sơ đồ hiện tại? Vị trí các máy đã đặt sẽ vẫn giữ nguyên toạ độ %, chỉ ảnh nền bị xoá.')) return;
+    layoutImage = null;
+    localStorage.removeItem(IMG_KEY);
+    showToast('Đã xoá ảnh sơ đồ', true);
+    renderAll();
+    updateCanvasFloatTools();
+  }
+
+  // Chỉ hiện cặp nút Import/Xoá khi: Edit mode + đã có ảnh (canvas-empty đã
+  // là CTA import to sẵn khi chưa có ảnh, không cần 2 lối import chồng nhau)
+  function updateCanvasFloatTools(){
+    canvasFloatTools.classList.toggle('show-import', isEditMode && !!layoutImage);
+    // Hint rõ lý do chưa thấy nút import khi đang ở View mode mà chưa có ảnh
+    const hint = document.getElementById('canvasEmptyHint');
+    if(hint){
+      hint.textContent = isEditMode
+        ? 'Nhấn để chọn ảnh, hoặc kéo file ảnh (.png/.jpg) thả vào đây'
+        : 'Chuyển sang chế độ Edit (góc trên bên phải) để import ảnh sơ đồ';
+    }
+  }
+
+  // Gắn listener đúng 1 lần (tránh nhân bản mỗi lần setupLayoutUpload() chạy lại khi đổi mode)
+  btnImportLayout.addEventListener('click', ()=>fileInput.click());
+  btnClearLayout.addEventListener('click', clearLayoutImage);
+  canvasEmpty.addEventListener('click', ()=>{ if(isEditMode) fileInput.click(); });
+  fileInput.addEventListener('change', e => handleFile(e.target.files && e.target.files[0]));
+
+  ['dragenter','dragover'].forEach(evt=>{
+    canvas.addEventListener(evt, e=>{ if(!isEditMode) return; e.preventDefault(); e.stopPropagation(); canvas.classList.add('file-drag'); });
+  });
+  ['dragleave','drop'].forEach(evt=>{
+    canvas.addEventListener(evt, e=>{ if(!isEditMode) return; e.preventDefault(); e.stopPropagation(); canvas.classList.remove('file-drag'); });
+  });
+  canvas.addEventListener('drop', e=>{
+    if(!isEditMode) return;
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(f && f.type.startsWith('image/')) handleFile(f);
+  });
+
+  // Chỉ cho phép tương tác import ở Edit mode; ẩn/hiện floating tools theo mode
+  function setupLayoutUpload(){
+    updateCanvasFloatTools();
+    canvasEmpty.style.pointerEvents = isEditMode ? 'auto' : 'none';
+    canvasEmpty.style.opacity = isEditMode ? '1' : '0.5';
+    canvasEmpty.style.cursor = isEditMode ? 'pointer' : 'default';
+  }
+
+  // Nếu sau OFFLINE_FALLBACK_DELAY_MS vẫn chưa có dữ liệu thật -> dùng dữ liệu mẫu
+  offlineFallbackTimer = setTimeout(() => {
+    if(!gotServerData) activateLocalFallback();
+  }, OFFLINE_FALLBACK_DELAY_MS);
+
+  // ================================================================
+  // EDIT/VIEW MODE SWITCH
+  // ================================================================
+  const modeSwitch = document.getElementById('modeSwitch');
+  const modeEdit = document.getElementById('modeEdit');
+  const modeView = document.getElementById('modeView');
+  const labelEdit = document.getElementById('labelEdit');
+  const labelView = document.getElementById('labelView');
+  let isEditMode = !layoutImage; // Chưa có ảnh sơ đồ (lần đầu setup) -> mặc định Edit để còn import được; có ảnh rồi -> mặc định View để giám sát
+  let editInactivityTimer = null;
+  let lockHeartbeatTimer = null;
+  const EDIT_INACTIVITY_TIMEOUT_MS = 2 * 60 * 1000; // 2 phút
+  const LOCK_HEARTBEAT_MS = 15000; // 15s — refresh server safety timer (20s) before it expires
+
+  function resetEditInactivityTimer(){
+    if(!isEditMode) return;
+    clearTimeout(editInactivityTimer);
+    editInactivityTimer = setTimeout(() => {
+      if(isEditMode){
+        setEditMode(false);
+        showToast('Tự động chuyển sang View mode do không hoạt động', false);
+      }
+    }, EDIT_INACTIVITY_TIMEOUT_MS);
+  }
+
+  function startLockHeartbeat(){
+    stopLockHeartbeat();
+    // Periodically re-request lock to keep server's safety timer alive
+    lockHeartbeatTimer = setInterval(() => {
+      if(isEditMode && !usingLocalFallback){
+        requestLockFor(null);
+      }
+    }, LOCK_HEARTBEAT_MS);
+  }
+  function stopLockHeartbeat(){
+    if(lockHeartbeatTimer){ clearInterval(lockHeartbeatTimer); lockHeartbeatTimer = null; }
+  }
+
+
+  function forceCancelDrag(){
+    // Dọn sạch mọi trạng thái kéo-thả dở dang (nếu có) trước khi đổi mode, để không
+    // bao giờ mang theo 1 pin nửa vời (đang position:fixed, nằm ngoài world) sang trạng thái mới.
+    document.querySelectorAll('.machine-pin, .buffer-chip').forEach(el => {
+      if(el.style.position === 'fixed' || el.parentNode === document.body){
+        el.style.position = ''; el.style.left = ''; el.style.top = ''; el.style.width = '';
+        el.classList.remove('dragging');
+      }
+    });
+    dragEl = null; dragMoved = false;
+  }
+
+  function updateModeSwitch(){
+    forceCancelDrag();
+    const lockedByOther = lockHolder && lockHolder.clientId !== myClientId;
+    
+    // Disable switch if someone else is editing
+    if(lockedByOther && !isEditMode){
+      modeSwitch.classList.add('disabled');
+      modeEdit.disabled = true;
+      modeView.disabled = true;
+    } else {
+      modeSwitch.classList.remove('disabled');
+      modeEdit.disabled = false;
+      modeView.disabled = false;
+    }
+    
+    if(isEditMode){
+      modeSwitch.classList.add('edit-on');
+      labelEdit.classList.add('active');
+      labelView.classList.remove('active');
+      modeEdit.checked = true;
+      modeView.checked = false;
+      document.body.classList.remove('view-mode');
+    } else {
+      modeSwitch.classList.remove('edit-on');
+      labelEdit.classList.remove('active');
+      labelView.classList.add('active');
+      modeEdit.checked = false;
+      modeView.checked = true;
+      document.body.classList.add('view-mode');
+    }
+    renderAll();
+    resetView(); // Canvas đổi kích thước khi ẩn/hiện buffer-panel -> luôn đưa zoom/pan về mặc định
+    setupLayoutUpload(); // Re-setup layout upload based on mode
+  }
+
+  function setEditMode(edit){
+    // Prevent switching to edit if locked by others
+    if(edit && lockHolder && lockHolder.clientId !== myClientId){
+      showToast('Đang bị chỉnh sửa bởi ' + lockHolder.ip + ', vui lòng đợi hoặc chuyển sang View', true);
+      isEditMode = false;
+      updateModeSwitch();
+      return;
+    }
+    
+    isEditMode = edit;
+    updateModeSwitch();
+    
+    // Request lock when switching to edit mode
+    if(edit){
+      requestLockFor(null); // Request lock without specific machine
+      resetEditInactivityTimer(); // Start inactivity timer
+      startLockHeartbeat(); // Keep server safety timer alive
+    } else {
+      stopLockHeartbeat();
+      releaseLockNow();
+      clearTimeout(editInactivityTimer); // Clear timer when switching to view
+    }
+
+  }
+
+  modeEdit.addEventListener('change', () => {
+    if(modeEdit.checked) setEditMode(true);
+  });
+
+  modeView.addEventListener('change', () => {
+    if(modeView.checked) setEditMode(false);
+  });
+
+  // ================================================================
+  // ZOOM & PAN kiểu bản đồ số: wheel, nút +/-, kéo pan vùng trống, pinch 2 ngón
+  // Cơ chế: .layout-world nhận transform translate(pan) scale(zoom). Vì world có
+  // kích thước đúng bằng canvas lúc zoom=1, mọi % vị trí pin không cần đổi gì.
+  // ================================================================
+  let zoomLevel = 1;
+  let currentContainerScale = 1; // giá trị scale "phẳng" (chưa chia cho zoom) - dùng để đóng băng size pin lúc kéo
+  let panX = 0, panY = 0;
+  const ZOOM_MIN = 1;   // không cho zoom nhỏ hơn mức fit (world luôn phủ kín canvas)
+  const ZOOM_MAX = 5;
+  const PAN_SLACK_RATIO = 0.4; // luôn giữ tối thiểu 60% world nằm trong khung nhìn
+
+  function clampNum(v, min, max){ return Math.min(max, Math.max(min, v)); }
+
+  function clampPan(px, py, z){
+    const vw = canvas.clientWidth, vh = canvas.clientHeight;
+    const worldW = vw * z, worldH = vh * z;
+    const slackX = vw * PAN_SLACK_RATIO, slackY = vh * PAN_SLACK_RATIO;
+    return {
+      x: clampNum(px, vw - worldW - slackX, slackX),
+      y: clampNum(py, vh - worldH - slackY, slackY),
+    };
+  }
+
+  // Quy đổi toạ độ % (lưu trong machine.x/y, theo hệ world lúc zoom=1) sang
+  // toạ độ pixel thực trên màn hình, dựa theo pan/zoom hiện tại. Vì world có
+  // transform-origin:0 0, một điểm P trong hệ local của world rơi vào màn hình
+  // ở vị trí: panX + P.x*zoom , panY + P.y*zoom.
+  function pinScreenPos(m){
+    const vw = canvas.clientWidth, vh = canvas.clientHeight;
+    return {
+      x: panX + (m.x / 100) * vw * zoomLevel,
+      y: panY + (m.y / 100) * vh * zoomLevel,
+    };
+  }
+
+  // Cập nhật lại vị trí (px) của mọi pin đang hiển thị trong pin-layer.
+  // Gọi mỗi khi pan/zoom hoặc kích thước canvas thay đổi.
+  function repositionAllPins(){
+    pinLayer.querySelectorAll('.machine-pin').forEach(pin => {
+      const m = machines.find(mm => mm.id === pin.dataset.id);
+      if(!m || m.x == null || m.y == null) return;
+      const pos = pinScreenPos(m);
+      pin.style.left = pos.x + 'px';
+      pin.style.top = pos.y + 'px';
+    });
+  }
+
+  function applyTransform(){
+    world.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+    repositionAllPins();
+    updateMinimap();
+  }
+
+  function updateZoomUI(){
+    zoomLevelText.textContent = Math.round(zoomLevel * 100) + '%';
+    btnZoomOut.disabled = zoomLevel <= 1.001;
+    minimap.classList.toggle('show', zoomLevel > 1.001 && !!layoutImage);
+
+    // Adaptive hiển thị pin theo zoom (dải thực tế 100-500%, vì ZOOM_MIN=1):
+    // 100-150% tối giản | 150-300% đầy đủ (mặc định, không cần class riêng) | >300% tự bung pin-card
+    canvas.classList.toggle('zoom-minimal', zoomLevel < 1.5);
+    canvas.classList.toggle('zoom-detail', zoomLevel > 3);
+  }
+
+  // focalX/focalY: toạ độ trong hệ viewport (canvas), giữ nguyên điểm đó dưới màn hình sau khi zoom
+  function setZoom(newZoom, focalX, focalY){
+    newZoom = clampNum(newZoom, ZOOM_MIN, ZOOM_MAX);
+    if(focalX === undefined || focalY === undefined){
+      focalX = canvas.clientWidth / 2;
+      focalY = canvas.clientHeight / 2;
+    }
+    const worldX = (focalX - panX) / zoomLevel;
+    const worldY = (focalY - panY) / zoomLevel;
+
+    zoomLevel = newZoom;
+    panX = focalX - worldX * zoomLevel;
+    panY = focalY - worldY * zoomLevel;
+
+    if(zoomLevel <= 1.001){ zoomLevel = 1; panX = 0; panY = 0; }
+
+    const c = clampPan(panX, panY, zoomLevel);
+    panX = c.x; panY = c.y;
+
+    applyTransform();
+    updateZoomUI();
+  }
+
+  function resetView(){
+    zoomLevel = 1; panX = 0; panY = 0;
+    applyTransform();
+    updateZoomUI();
+  }
+
+  // ---- Nút +/- và reset ----
+  btnZoomIn.addEventListener('click', () => setZoom(zoomLevel * 1.3));
+  btnZoomOut.addEventListener('click', () => setZoom(zoomLevel / 1.3));
+  btnZoomReset.addEventListener('click', () => resetView());
+
+  // ---- Lưới căn chỉnh thủ công (khác blueprint-mode - cái đó chỉ hiện khi CHƯA có ảnh).
+  // Đây là lưới người dùng tự bật để căn máy cho thẳng hàng khi kéo thả, chồng lên ảnh thật. ----
+  const btnGridAlign = document.getElementById('btnGridAlign');
+  btnGridAlign.addEventListener('click', () => {
+    const on = world.classList.toggle('grid-align-on');
+    btnGridAlign.classList.toggle('active', on);
+    showToast(on ? 'Đã bật lưới căn chỉnh' : 'Đã tắt lưới căn chỉnh');
+  });
+
+  // ---- Wheel (giữ nguyên điểm dưới con trỏ) ----
+  canvas.addEventListener('wheel', function(e){
+    e.preventDefault();
+    const r = canvas.getBoundingClientRect();
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    setZoom(zoomLevel * factor, e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+
+  // ---- Pan (kéo vùng trống) + Pinch-to-zoom (2 ngón), dùng chung Pointer Events ----
+  const activePointers = new Map(); // pointerId -> {x,y}
+  let isPanning = false;
+  let panStartX = 0, panStartY = 0, panOriginX = 0, panOriginY = 0;
+  let pinchStartDist = 0, pinchStartZoom = 1;
+
+  function pinchMidpoint(){
+    const pts = Array.from(activePointers.values());
+    return { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+  }
+  function pinchDistance(){
+    const pts = Array.from(activePointers.values());
+    return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  }
+
+  canvas.addEventListener('pointerdown', function(e){
+    if(e.target.closest('.machine-pin')) return; // nhường cho attachPinDrag
+    if(dragEl) return; // đang kéo chip từ buffer sang, không pan
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+
+    if(activePointers.size === 2){
+      isPanning = false;
+      canvas.classList.remove('panning');
+      pinchStartDist = pinchDistance();
+      pinchStartZoom = zoomLevel;
+    } else if(activePointers.size === 1 && zoomLevel > 1.001){
+      isPanning = true;
+      panStartX = e.clientX; panStartY = e.clientY;
+      panOriginX = panX; panOriginY = panY;
+      canvas.classList.add('panning');
+    }
+  });
+
+  canvas.addEventListener('pointermove', function(e){
+    if(!activePointers.has(e.pointerId)) return;
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if(activePointers.size === 2){
+      const r = canvas.getBoundingClientRect();
+      const mid = pinchMidpoint();
+      const dist = pinchDistance();
+      if(pinchStartDist > 0){
+        setZoom(pinchStartZoom * (dist / pinchStartDist), mid.x - r.left, mid.y - r.top);
+      }
+    } else if(isPanning){
+      const dx = e.clientX - panStartX, dy = e.clientY - panStartY;
+      const c = clampPan(panOriginX + dx, panOriginY + dy, zoomLevel);
+      panX = c.x; panY = c.y;
+      applyTransform();
+    }
+  });
+
+  function endCanvasPointer(e){
+    activePointers.delete(e.pointerId);
+    try{ canvas.releasePointerCapture(e.pointerId); }catch(err){}
+    if(activePointers.size < 2) pinchStartDist = 0;
+    if(activePointers.size === 0){ isPanning = false; canvas.classList.remove('panning'); }
+  }
+  canvas.addEventListener('pointerup', endCanvasPointer);
+  canvas.addEventListener('pointercancel', endCanvasPointer);
+
+  // ---- Minimap: khung nhỏ hiển thị đang xem vùng nào của sơ đồ ----
+  function updateMinimap(){
+    if(!layoutImage || zoomLevel <= 1.001){
+      minimap.classList.remove('show');
+      return;
+    }
+    minimap.classList.add('show');
+    const vw = canvas.clientWidth, vh = canvas.clientHeight;
+    if(!vw || !vh) return;
+    const leftPct = clampNum((-panX / zoomLevel) / vw * 100, 0, 100);
+    const topPct = clampNum((-panY / zoomLevel) / vh * 100, 0, 100);
+    const wPct = clampNum((vw / zoomLevel) / vw * 100, 0, 100 - leftPct);
+    const hPct = clampNum((vh / zoomLevel) / vh * 100, 0, 100 - topPct);
+    minimapViewport.style.left = leftPct + '%';
+    minimapViewport.style.top = topPct + '%';
+    minimapViewport.style.width = wPct + '%';
+    minimapViewport.style.height = hPct + '%';
+  }
+
+  // ---- Minimap tương tác: click hoặc kéo để pan nhanh tới vùng tương ứng ----
+  function panFromMinimapEvent(e){
+    const rect = minimap.getBoundingClientRect();
+    const fx = clampNum((e.clientX - rect.left) / rect.width, 0, 1);
+    const fy = clampNum((e.clientY - rect.top) / rect.height, 0, 1);
+    const vw = canvas.clientWidth, vh = canvas.clientHeight;
+    if(!vw || !vh) return;
+    const worldX = fx * vw, worldY = fy * vh;
+    // Đưa điểm vừa click/kéo về giữa khung nhìn hiện tại
+    panX = vw / 2 - worldX * zoomLevel;
+    panY = vh / 2 - worldY * zoomLevel;
+    const c = clampPan(panX, panY, zoomLevel);
+    panX = c.x; panY = c.y;
+    applyTransform();
+  }
+  let minimapDragging = false;
+  minimap.addEventListener('pointerdown', e => {
+    if(zoomLevel <= 1.001) return; // chưa zoom thì không có gì để pan
+    minimapDragging = true;
+    minimap.classList.add('dragging-viewport');
+    try{ minimap.setPointerCapture(e.pointerId); }catch(err){}
+    panFromMinimapEvent(e);
+  });
+  minimap.addEventListener('pointermove', e => {
+    if(!minimapDragging) return;
+    panFromMinimapEvent(e);
+  });
+  ['pointerup','pointercancel','pointerleave'].forEach(evt=>{
+    minimap.addEventListener(evt, e => {
+      if(!minimapDragging) return;
+      minimapDragging = false;
+      minimap.classList.remove('dragging-viewport');
+      try{ minimap.releasePointerCapture(e.pointerId); }catch(err){}
+    });
+  });
+
+  // ResizeObserver: tự động cập nhật --pin-scale + minimap khi canvas đổi kích thước
+  const BASE_WIDTH = 1100; // kích thước "chuẩn" để tính scale
+  const MIN_SCALE = 0.7;
+  const MAX_SCALE = 1.3;
+
+  function updatePinScale(){
+    const rect = canvas.getBoundingClientRect();
+    const containerScale = clampNum(rect.width / BASE_WIDTH, MIN_SCALE, MAX_SCALE);
+    currentContainerScale = containerScale; // lưu lại giá trị cho attachPinDrag dùng
+    // Pin nằm ở pin-layer (không bị transform:scale() theo zoom) nên --pin-scale
+    // giờ chỉ còn dùng để co giãn theo bề rộng màn hình (responsive), không cần
+    // chia cho zoomLevel nữa => pin không bao giờ bị mờ dù zoom cao đến đâu.
+    canvas.style.setProperty('--pin-scale', containerScale.toFixed(3));
+  }
+
+  const resizeObserver = new ResizeObserver(() => {
+    if(dragEl) return; // không update scale khi đang kéo
+    updatePinScale();
+    repositionAllPins(); // kích thước canvas đổi => toạ độ px của pin cũng phải tính lại
+    updateMinimap();
+  });
+  resizeObserver.observe(canvas);
+  updatePinScale(); // gọi lần đầu khi init
+
+  // Initialize mode switch (default to View)
+  updateModeSwitch();
+
+  connectWS();
+})();
+</script>
+</body>
+</html>
